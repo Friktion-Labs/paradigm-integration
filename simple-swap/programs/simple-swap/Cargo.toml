@@ -1,8 +1,12 @@
+
 [package]
 name = "simple-swap"
 version = "0.1.0"
-description = "Created with Anchor"
-edition = "2021"
+description = "For simple OTC swaps on-chain and interaction w/ Paradigm"
+edition = "2018"
+
+[net]
+git-fetch-with-cli = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -11,12 +15,17 @@ name = "simple_swap"
 [features]
 no-entrypoint = []
 no-idl = []
-no-log-ix-name = []
 cpi = ["no-entrypoint"]
-default = []
+default = ["mainnet"]
+mainnet = []
+test-bpf = []
 
-[profile.release]
-overflow-checks = true
 
 [dependencies]
-anchor-lang = "0.24.2"
+anchor-lang = { version="0.24.2", features=["init-if-needed"] }
+anchor-spl = { version="0.24.2", features=["dex"] }
+solana-program = "^1.8.14"
+fixed = { version = "^1.9.0", features = ["serde"] }
+fixed-macro = "^1.1.1"
+
+
