@@ -21,10 +21,10 @@ from solana.utils.helpers import decode_byte_string
 import spl.token._layouts as layouts
 import sys
 sys.path.insert(0, "/Users/alexwlezien/Friktion/paradigm-integration/friktion-anchor")
-from friktion_anchor.accounts import SwapOrder, UserOrders
-from friktion_anchor.program_id import PROGRAM_ID
+from .friktion_anchor.accounts import SwapOrder, UserOrders
+from .friktion_anchor.program_id import PROGRAM_ID
 from solana.sysvar import SYSVAR_RENT_PUBKEY
-from friktion_anchor.instructions import create
+from .friktion_anchor.instructions import create
 from solana.rpc.async_api import AsyncClient
 from solana.system_program import SYS_PROGRAM_ID
 from .swap_order_template import SwapOrderTemplate
@@ -75,7 +75,7 @@ class SwapContract():
         config (ContractConfig): Configuration to setup the Contract
     """
 
-    async def get_offer_details(self, user: PublicKey, order_id: int) -> dict:
+    async def get_offer_details(self, user: PublicKey, order_id: int) -> SwapOrder:
         """
         Method to get bid details
         Args:
@@ -89,7 +89,7 @@ class SwapContract():
         client = AsyncClient(self.url)
         res = await client.is_connected()
 
-        seeds = [bytes("swapOrder"), bytes(user), bytes(order_id)]
+        seeds = [str.encode("swapOrder"), bytes(user), bytes(order_id)]
         [addr, bump] = PublicKey.find_program_address(
             seeds,
             PROGRAM_ID
@@ -132,7 +132,7 @@ class SwapContract():
         swap_order_owner = bid_details.swap_order_owner
         order_id = bid_details.order_id
 
-        seeds = [bytes("swapOrder"), bytes(swap_order_owner), bytes(order_id)]
+        seeds = [str.encode("swapOrder"), bytes(swap_order_owner), bytes(order_id)]
         [swap_order_addr, _] = PublicKey.find_program_address(
             seeds,
             PROGRAM_ID
@@ -176,7 +176,7 @@ class SwapContract():
         await client.confirm_transaction(tx_resp)
         await client.close()
 
-    async def create_offer(self, wallet: Wallet, template: SwapOrderTemplate) -> str:
+    async def create_offer(self, wallet: Wallet, template: SwapOrderTemplate) -> SwapOrder:
         """
         Method to create offer
         Args:
@@ -193,7 +193,7 @@ class SwapContract():
         client = AsyncClient(self.url)
         res = await client.is_connected()
 
-        user_orders_seeds = [bytes("userOrders"), bytes(wallet.public_key)]
+        user_orders_seeds = [str.encode("userOrders"), bytes(wallet.public_key)]
         [user_orders_addr, _] = PublicKey.find_program_address(
             user_orders_seeds,
             PROGRAM_ID
@@ -206,19 +206,19 @@ class SwapContract():
             order_id = acc.curr_order_id
 
 
-        swap_order_seeds = [bytes("swapOrder"), bytes(wallet.public_key), bytes(order_id)]
+        swap_order_seeds = [str.encode("swapOrder"), bytes(wallet.public_key), bytes(order_id)]
         [swap_order_addr, _] = PublicKey.find_program_address(
             swap_order_seeds,
             PROGRAM_ID
         )
 
-        give_pool_seeds = [ bytes("givePool"), bytes(swap_order_addr)]
+        give_pool_seeds = [ str.encode("givePool"), bytes(swap_order_addr)]
         [give_pool_addr, _] = PublicKey.find_program_address(
             give_pool_seeds,
             PROGRAM_ID
         )
     
-        receive_pool_seeds = [ bytes("receivePool"), bytes(swap_order_addr)]
+        receive_pool_seeds = [ str.encode("receivePool"), bytes(swap_order_addr)]
         [receive_pool_addr, _] = PublicKey.find_program_address(
             receive_pool_seeds,
             PROGRAM_ID
@@ -257,5 +257,9 @@ class SwapContract():
         tx_resp = await provider.send(tx, [])
         print(tx_resp)
 
+        acc = await SwapOrder.fetch(client, swap_order_addr)
+
         await client.confirm_transaction(tx_resp)
         await client.close()
+
+        return acc

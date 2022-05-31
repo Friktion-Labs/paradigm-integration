@@ -3,9 +3,9 @@ from numpy import rec
 from solana.publickey import PublicKey
 import sys
 sys.path.insert(0, "/Users/alexwlezien/Friktion/paradigm-integration/friktion-anchor")
-from friktion_anchor.accounts import SwapOrder, UserOrders
-from friktion_anchor.program_id import PROGRAM_ID
-from friktion_anchor.instructions import create
+from .friktion_anchor.accounts import SwapOrder, UserOrders
+from .friktion_anchor.program_id import PROGRAM_ID
+from .friktion_anchor.instructions import create
 from solana.rpc.async_api import AsyncClient
 from .constants import WHITELIST_TOKEN_MINT
 
