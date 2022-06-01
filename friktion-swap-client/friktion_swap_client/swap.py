@@ -7,6 +7,7 @@
 # ---------------------------------------------------------------------------
 from dataclasses import asdict
 import time
+from solana.utils import helpers
 from shutil import ExecError
 from anchorpy import Wallet
 from anchorpy import Provider
@@ -24,7 +25,7 @@ sys.path.insert(0, "/Users/alexwlezien/Friktion/paradigm-integration/friktion-an
 from .friktion_anchor.accounts import SwapOrder, UserOrders
 from .friktion_anchor.program_id import PROGRAM_ID
 from solana.sysvar import SYSVAR_RENT_PUBKEY
-from .friktion_anchor.instructions import create
+from .friktion_anchor.instructions import create, exec
 from solana.rpc.async_api import AsyncClient
 from solana.system_program import SYS_PROGRAM_ID
 from .swap_order_template import SwapOrderTemplate
@@ -32,6 +33,7 @@ from .bid_details import BidDetails
 from spl.token.constants import ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID
 from solana.transaction import Transaction
 from enum import Enum
+import asyncio
 
 def get_token_account(token_account_pk: PublicKey):
     http_client = Client(commitment=Processed)
@@ -89,7 +91,7 @@ class SwapContract():
         client = AsyncClient(self.url)
         res = await client.is_connected()
 
-        seeds = [str.encode("swapOrder"), bytes(user), bytes(order_id)]
+        seeds = [str.encode("swapOrder"), bytes(user), order_id.to_bytes(8, byteorder="little")]
         [addr, bump] = PublicKey.find_program_address(
             seeds,
             PROGRAM_ID
@@ -132,7 +134,7 @@ class SwapContract():
         swap_order_owner = bid_details.swap_order_owner
         order_id = bid_details.order_id
 
-        seeds = [str.encode("swapOrder"), bytes(swap_order_owner), bytes(order_id)]
+        seeds = [str.encode("swapOrder"), bytes(swap_order_owner), order_id.to_bytes(8, byteorder="little")]
         [swap_order_addr, _] = PublicKey.find_program_address(
             seeds,
             PROGRAM_ID
@@ -142,13 +144,12 @@ class SwapContract():
         if acc is None:
             raise ValueError("No swap found for user = ", swap_order_owner, ', order id = ', order_id)
 
-        error_dict = self.validate_bid(wallet, bid_details, acc)
+        error_dict = await self.validate_bid(wallet, bid_details, acc)
         if error_dict['error'] is not None:
             await client.close()
             return error_dict
         
         ix = exec({
-            }, {
             "authority": wallet.public_key, # signer
             "swap_order": swap_order_addr,
             "give_pool": acc.give_pool,
@@ -205,8 +206,9 @@ class SwapContract():
         else:
             order_id = acc.curr_order_id
 
+        print('order id = {}'.format(order_id))
 
-        swap_order_seeds = [str.encode("swapOrder"), bytes(wallet.public_key), bytes(order_id)]
+        swap_order_seeds = [str.encode("swapOrder"), bytes(wallet.public_key), order_id.to_bytes(8, byteorder="little")]
         [swap_order_addr, _] = PublicKey.find_program_address(
             swap_order_seeds,
             PROGRAM_ID
@@ -247,8 +249,15 @@ class SwapContract():
         "rent": SYSVAR_RENT_PUBKEY
         })
 
+        # blockhash_resp = (await client.get_recent_blockhash())
+        # print('blockhash response: {}'.format(blockhash_resp))
+        # blockhash = blockhash_resp['result']['value']['blockhash']
         tx = Transaction().add(ix)
 
+        print('create ix data: {}'.format(ix.data))
+        print('create ix accounts: {}'.format(ix.keys))
+
+        # tx = wallet.sign_transaction(tx)
         provider = Provider(
             client, wallet
         )
@@ -257,9 +266,11 @@ class SwapContract():
         tx_resp = await provider.send(tx, [])
         print(tx_resp)
 
+        await client.confirm_transaction(tx_resp)
+
+        await asyncio.sleep(1)
         acc = await SwapOrder.fetch(client, swap_order_addr)
 
-        await client.confirm_transaction(tx_resp)
         await client.close()
 
         return acc

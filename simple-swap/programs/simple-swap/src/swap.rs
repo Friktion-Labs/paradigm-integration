@@ -1,8 +1,8 @@
-use crate::ErrorCode::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::TokenAccount;
 
 #[derive(Debug, Clone, Copy, AnchorSerialize, AnchorDeserialize, PartialEq)]
+#[repr(u32)]
 pub enum OrderStatus {
     Created,
     Canceled,
@@ -17,7 +17,7 @@ pub struct UserOrders {
 }
 
 impl UserOrders {
-    pub const LEN: usize = 8;
+    pub const LEN: usize = 40;
 }
 
 #[account]
@@ -50,7 +50,7 @@ pub struct SwapOrder {
 }
 
 impl SwapOrder {
-    pub const LEN: usize = 8 * 2 + 5 * 32 + 1;
+    pub const LEN: usize = 32 + 8 * 3 + 32 * 2 + 8 + 32 * 2 + 1 + 32 + 1 + 32 + 1 + 4 + 8 + 1;
 
     pub fn check_is_trading(&self) -> Result<()> {
         require!(self.status != OrderStatus::Filled, SwapOrderWasFilled);
@@ -129,7 +129,7 @@ impl SwapOrder {
         Ok(())
     }
 
-    pub fn disable(&mut self, creator: &AccountInfo) -> Result<()> {
+    pub fn disable(&mut self, _creator: &AccountInfo) -> Result<()> {
         self.is_disabled = true;
 
         Ok(())

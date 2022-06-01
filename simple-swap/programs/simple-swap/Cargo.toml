@@ -3,7 +3,7 @@
 name = "simple-swap"
 version = "0.1.0"
 description = "For simple OTC swaps on-chain and interaction w/ Paradigm"
-edition = "2018"
+edition = "2021"
 
 [net]
 git-fetch-with-cli = true

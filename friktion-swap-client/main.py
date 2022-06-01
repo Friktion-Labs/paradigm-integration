@@ -77,30 +77,37 @@ async def main_def():
 
     # retrieve offer, check values match as expected
     offer_2 = await c.get_offer_details(
-        wallet.public_key, 0
+        wallet.public_key, offer_1.order_id
     )
 
     print('swap order 1 = ', offer_1)
     print('swap order 2 = ', offer_2)
     print('should be equal!')
-    assert offer_1.status == Created
+    assert offer_1.status == Created()
+    assert offer_2.status == Created()
+    assert offer_1.give_size == offer_2.give_size
+    assert offer_1.receive_size == offer_2.receive_size
     assert offer_1 == offer_2
 
     # fill offer via bid
     await c.validate_and_exec_bid(
         wallet, BidDetails(
-            wallet.public_key, 0,
+            wallet.public_key, offer_1.order_id,
             creator_give_pool_key,
             creator_receive_pool_key
         )
     )
 
     offer_3 = await c.get_offer_details(
-        wallet.public_key, 0
+        wallet.public_key, offer_1.order_id
     )
 
-    assert offer_3.status == Filled
+    assert offer_3.status == Filled()
 
     print('Finished!')
+    
+    print('order post fill: {}'.format(offer_3))
 
+    await client.close()
+    
 asyncio.run(main_def())

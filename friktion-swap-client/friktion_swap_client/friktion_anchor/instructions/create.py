@@ -42,8 +42,8 @@ class CreateAccounts(typing.TypedDict):
 
 def create(args: CreateArgs, accounts: CreateAccounts) -> TransactionInstruction:
     keys: list[AccountMeta] = [
-        AccountMeta(pubkey=accounts["payer"], is_signer=True, is_writable=True),
-        AccountMeta(pubkey=accounts["authority"], is_signer=True, is_writable=True),
+        AccountMeta(pubkey=accounts["payer"], is_signer=False, is_writable=True),
+        AccountMeta(pubkey=accounts["authority"], is_signer=True, is_writable=False),
         AccountMeta(pubkey=accounts["user_orders"], is_signer=False, is_writable=True),
         AccountMeta(pubkey=accounts["swap_order"], is_signer=False, is_writable=True),
         AccountMeta(pubkey=accounts["give_pool"], is_signer=False, is_writable=True),
@@ -53,7 +53,7 @@ def create(args: CreateArgs, accounts: CreateAccounts) -> TransactionInstruction
             pubkey=accounts["receive_mint"], is_signer=False, is_writable=False
         ),
         AccountMeta(
-            pubkey=accounts["creator_give_pool"], is_signer=False, is_writable=False
+            pubkey=accounts["creator_give_pool"], is_signer=False, is_writable=True
         ),
         AccountMeta(
             pubkey=accounts["counterparty"], is_signer=False, is_writable=False

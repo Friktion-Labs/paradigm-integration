@@ -1,5 +1,3 @@
-[features]
-seeds = false
 [programs.localnet]
 simple_swap = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 

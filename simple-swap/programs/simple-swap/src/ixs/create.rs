@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use anchor_spl::token::{Mint, Token, TokenAccount};
@@ -9,22 +7,23 @@ use crate::{SwapOrder, UserOrders};
 
 #[derive(Accounts)]
 #[instruction(
-  give_size: u64,
-  receive_size: u64,
-  expiry: u64,
-  is_counterparty_provided: bool,
-  is_whitelisted: bool,
-  order_id: u64,
+    give_size: u64,
+    receive_size: u64,
+    expiry: u64,
+    is_counterparty_provided: bool,
+    is_whitelisted: bool,
 )]
 pub struct Create<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
+    #[account(mut, 
+        constraint = payer.owner != &crate::id()
+    )]
+    /// CHECK: just pays for stuff, can be any account. checked by macro that it's not owned by this program haha
+    pub payer: AccountInfo<'info>,
 
-    #[account(mut)]
     pub authority: Signer<'info>,
 
     #[account(init_if_needed,
-        space=UserOrders::LEN,
+        space=UserOrders::LEN + 8,
         seeds = [
             b"userOrders",
             authority.key().to_bytes().as_ref(),
@@ -50,9 +49,9 @@ pub struct Create<'info> {
     // volt is maker in this case
     #[account(init, seeds = [
          b"givePool",
-
-            &swap_order.key().to_bytes()[..],
-        ], bump,
+        &swap_order.key().to_bytes()[..],
+        ], 
+        bump,
         payer=payer,
         token::mint=give_mint,
         token::authority=swap_order
@@ -63,8 +62,9 @@ pub struct Create<'info> {
     // counterparty is taker
     #[account(init, seeds = [
          b"receivePool",
-            &swap_order.key().to_bytes()[..],
-        ], bump,
+        &swap_order.key().to_bytes()[..],
+        ], 
+        bump,
         payer=payer,
         token::mint=receive_mint,
         token::authority=swap_order
@@ -72,6 +72,7 @@ pub struct Create<'info> {
     pub receive_pool: Box<Account<'info, TokenAccount>>,
     pub receive_mint: Box<Account<'info, Mint>>,
 
+    #[account(mut, token::authority=authority.key())]
     pub creator_give_pool: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: none necessary since this should just be the pubkey of keypair or pda or counterparty
@@ -110,6 +111,7 @@ pub fn handler<'a, 'b, 'c, 'info>(
     swap_order.receive_size = receive_size;
 
     swap_order.order_id = ctx.accounts.user_orders.curr_order_id;
+    swap_order.bump = *ctx.bumps.get("swap_order").unwrap();
 
     let possible_cp = ctx.accounts.counterparty.key();
     if is_counterparty_provided {
@@ -126,6 +128,7 @@ pub fn handler<'a, 'b, 'c, 'info>(
         swap_order.is_whitelisted = false;
     }
 
+    
     token::transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -138,13 +141,20 @@ pub fn handler<'a, 'b, 'c, 'info>(
         swap_order.give_size,
     )?;
 
+    if ctx.accounts.user_orders.curr_order_id == 0 {
+        msg!("initializing user orders account");
+        ctx.accounts.user_orders.user = ctx.accounts.authority.key();
+        ctx.accounts.user_orders.curr_order_id = 0;
+    }
+
     ctx.accounts.user_orders.curr_order_id = ctx
         .accounts
         .user_orders
         .curr_order_id
         .checked_add(1)
         .unwrap();
-    ctx.accounts.user_orders.user = ctx.accounts.authority.key();
+
+    msg!("order id = {:?}", ctx.accounts.user_orders.curr_order_id);
 
     Ok(swap_order.order_id)
 }

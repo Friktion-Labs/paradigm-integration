@@ -26,12 +26,10 @@ def exec(accounts: ExecAccounts) -> TransactionInstruction:
         AccountMeta(
             pubkey=accounts["counterparty_receive_pool"],
             is_signer=False,
-            is_writable=False,
+            is_writable=True,
         ),
         AccountMeta(
-            pubkey=accounts["counterparty_give_pool"],
-            is_signer=False,
-            is_writable=False,
+            pubkey=accounts["counterparty_give_pool"], is_signer=False, is_writable=True
         ),
         AccountMeta(
             pubkey=accounts["whitelist_token_account"],

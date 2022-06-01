@@ -12,7 +12,7 @@ declare_id!("SwpWEbAhitpix22gbX28zah7g8JiA1FRwVdPe4XohQb");
 pub mod simple_swap {
     use crate::{
         ixs::{self, Cancel, Create, Exec},
-        Claim,
+        Claim, 
     };
     use anchor_lang::prelude::*;
     pub fn create<'a, 'b, 'c, 'info>(

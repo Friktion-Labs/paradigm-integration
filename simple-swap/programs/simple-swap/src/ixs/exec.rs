@@ -1,9 +1,6 @@
-use std::str::FromStr;
-
 use crate::{gen_swap_signer_seeds, SwapOrder};
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
-use fixed::types::I80F48;
+use anchor_spl::token::{self, Token, TokenAccount};
 
 #[derive(Accounts)]
 pub struct Exec<'info> {
@@ -16,7 +13,7 @@ pub struct Exec<'info> {
         b"swapOrder",
         &swap_order.creator.key().to_bytes()[..],
         swap_order.order_id.to_le_bytes().as_ref()
-    ],
+      ],
       bump,
     )]
     pub swap_order: Box<Account<'info, SwapOrder>>,
@@ -29,7 +26,9 @@ pub struct Exec<'info> {
     #[account(mut, address=swap_order.receive_pool)]
     pub receive_pool: Box<Account<'info, TokenAccount>>,
 
+    #[account(mut)]
     pub counterparty_receive_pool: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
     pub counterparty_give_pool: Box<Account<'info, TokenAccount>>,
 
     /// CHECK: may not be necessary to use if swap order isnt' whitelisted,

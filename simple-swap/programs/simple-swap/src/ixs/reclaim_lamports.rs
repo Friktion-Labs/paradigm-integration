@@ -1,10 +1,7 @@
-use std::str::FromStr;
-
 use crate::{gen_swap_signer_seeds, SwapOrder};
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
-use fixed::types::I80F48;
+use anchor_spl::token::{self, Token, TokenAccount};
 
 #[derive(Accounts)]
 #[instruction()]
