@@ -5,6 +5,8 @@ This python SDK enables interaction with the on-chain Friktion swap program. Thi
 
 ## Setup
 
+
+0. look at ../README.md (top-level in this repo), install all dependencies described there (solana + anchor)
 1. ```poetry install```
 2. set ANCHOR_PROVIDER_URL (rpc url) and ANCHOR_WALLET (file that has keypair of wallet) bash env variables (export them in terminal)
       (NOTE: ANCHOR_PROVIDER_URL determines if devnet, testnet, mainnet, etc)
