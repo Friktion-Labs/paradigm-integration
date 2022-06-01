@@ -2,6 +2,14 @@
 
 This python SDK enables interaction with the on-chain Friktion swap program. This includes the ability to create, retrieve, and execute a swap order. The swap order represents the exchange of 2 assets in prerecorded static amounts.
 
+
+## Setup
+
+1. Poetry install
+2. set ANCHOR_PROVIDER_URL (rpc url) and ANCHOR_WALLET (file that has keypair of wallet) bash env variables (export them in terminal)
+      (NOTE: ANCHOR_PROVIDER_URL determines if devnet, testnet, mainnet, etc)
+      (NOTE: make sure you have SOL in the ANCHOR_WALLET for the correct cluster)
+
 ## Testing
 
 The following command will run a script that 1. creates an offer 2. fetches the offer (and asserts that it is available to execute), 3. fills the offer with a corresponding bid
