@@ -98,7 +98,7 @@ def set_tx_successful(trade_id: int, tx_id: str):
     return _do_paradigm_request('PATCH','trades/%d' % trade_id, payload)
 
 # get "trade_id" from the "id" field returned in the response of POST on rfqs/{id}/orders/
-def set_tx_successful(trade_id: int, tx_id: str, error_msg: str):
+def set_tx_rejected(trade_id: int, tx_id: str, error_msg: str):
     payload = """
         {\n  
             \"status\": \"REJECTED\",\n
