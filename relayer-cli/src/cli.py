@@ -19,14 +19,16 @@ def get_vrfq_from_db(db: TinyDB, vid: int) -> Document:
     return auction_deets
 
 def main():
+
     db = TinyDB('./relayer-db.json')
 
     parser = ArgumentParser(prog='cli')
     parser.add_argument("--i", help="instruction to run (aka http request to paradigm api", type=str)
-    parser.add_argument('-vid', help="id of vrfq", type=int)
+    parser.add_argument('--vid', help="id of vrfq", type=int)
     parser.add_argument('--sid', help="id of swap in simple-swap program", type=int)
     parser.add_argument('--qid', help="id of quote provided by paradigm maker", type=int)
     parser.add_argument('--txid', help="transaction id of failed or succesful transaction", type=str)
+    parser.add_argument('--errormsg', help="error messsage to descrbie failure", type=str)
 
     args = parser.parse_args()
 
@@ -83,7 +85,18 @@ def main():
         quotes_for_auction = json.loads(get_vrfqs_with_quotes(args.vid))
         print('QUOTES\n--------')
         print(quotes_for_auction)
-        
+
+    elif i == 'setComplete':
+        Order = Query()
+        order = db.search(
+            Order.type == 'order' and Order.rfq_id == args.vid   
+        )[0]
+        # set "order" transaction as executed
+        print(set_tx_successful(order.id, args.txid))
+    elif i == 'setFailed':
+        # set "order" transaction as rejected
+        print(set_tx_rejected(order.id, args.txid, args.errormsg))
+
   
 
 
