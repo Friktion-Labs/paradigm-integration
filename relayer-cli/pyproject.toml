@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "relayer-cli"
+version = "0.1.0"
+description = ""
+authors = ["bigdefidev <bigdefidev@protonmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+certifi = "2018.1.18"
+chardet = "3.0.4"
+idna = "2.6"
+pkginfo = "1.4.1"
+requests = "2.21.0"
+requests-toolbelt = "0.8.0"
+tqdm = "4.19.7"
+twine = "1.10.0"
+urllib3 = "1.24.2"
+tinydb = "^4.7.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
