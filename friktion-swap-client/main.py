@@ -55,12 +55,12 @@ async def main_def():
     try:
         await give_token.create_associated_token_account(wallet.public_key)
     except RPCException as e:
-        print('rpc exception, e = {}'.format(e))
+        print('DEBUG: error when creating associated token account. Ignore this usually!\n e = {}'.format(e))
 
     try:
         await receive_token.create_associated_token_account(wallet.public_key)
     except RPCException as e:
-        print('rpc exception, e = {}'.format(e))
+        print('DEBUG: error when creating associated token account. Ignore this usually!\n e = {}'.format(e))
          
 
     offer_1 = await c.create_offer(
