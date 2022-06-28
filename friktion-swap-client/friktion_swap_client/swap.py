@@ -7,6 +7,8 @@
 # ---------------------------------------------------------------------------
 from dataclasses import asdict
 import time
+from friktion_swap_client.friktion_anchor.instructions import cancel
+from friktion_swap_client.pda import SwapOrderAddresses, find_give_pool_address, find_receive_pool_address, find_swap_order_address, find_user_orders_address
 from solana.utils import helpers
 from shutil import ExecError
 from anchorpy import Wallet
@@ -91,11 +93,7 @@ class SwapContract():
         client = AsyncClient(self.url)
         res = await client.is_connected()
 
-        seeds = [str.encode("swapOrder"), bytes(user), order_id.to_bytes(8, byteorder="little")]
-        [addr, bump] = PublicKey.find_program_address(
-            seeds,
-            PROGRAM_ID
-        )
+        [addr, bump] = find_swap_order_address(user, order_id)
         
         acc = await SwapOrder.fetch(client, addr)
         if acc is None:
@@ -118,6 +116,126 @@ class SwapContract():
         return {
             "error": None
         }
+
+    async def validate_and_exec_bid(self, wallet: Wallet, bid_details: BidDetails):
+        """
+        Method to validate bid
+        Args:
+        Returns:
+            response (dict): Dictionary containing number of errors (errors)
+              and the corresponding error messages (messages)
+        """
+
+        client = AsyncClient(self.url)
+        res = await client.is_connected()
+
+        swap_order_owner = bid_details.swap_order_owner
+        order_id = bid_details.order_id
+
+        [swap_order_addr, bump] = find_swap_order_address(swap_order_owner, order_id)
+
+        acc = await SwapOrder.fetch(client, swap_order_addr)
+        if acc is None:
+            raise ValueError("No swap found for user = ", swap_order_owner, ', order id = ', order_id)
+
+        error_dict = await self.validate_bid(wallet, bid_details, acc)
+        if error_dict['error'] is not None:
+            await client.close()
+            return error_dict
+        
+        ix = exec({
+            "authority": wallet.public_key, # signer
+            "swap_order": swap_order_addr,
+            "give_pool": acc.give_pool,
+            "receive_pool": acc.receive_pool,
+            "counterparty_give_pool": bid_details.counterparty_give_pool,
+            "counterparty_receive_pool": bid_details.counterparty_receive_pool,
+            # pass in a dummy value since not using whitelisting right now
+            "whitelist_token_account": SYS_PROGRAM_ID,
+            "system_program": SYS_PROGRAM_ID,
+            "token_program": TOKEN_PROGRAM_ID,
+        })
+
+        tx = Transaction().add(ix)
+
+        provider = Provider(
+            client, wallet
+        )
+
+        print('sending exec tx...')
+        
+        tx_resp = await provider.send(tx, [])
+
+        print(tx_resp)
+
+        await client.confirm_transaction(tx_resp)
+        await client.close()
+
+    async def create_offer(self, wallet: Wallet, template: SwapOrderTemplate) -> SwapOrder:
+        """
+        Method to create offer
+        Args:
+            offer (dict): Offer dictionary containing necessary parameters 
+                to create a new offer
+            wallet (Wallet): Wallet class instance
+        Raises:
+            TypeError: Offer argument is not a valid instance of Offer class
+            ExecError: Transaction reverted
+        Returns:
+            offerId (int): OfferId of the created order
+        """
+
+        client = AsyncClient(self.url)
+        await client.is_connected()
+
+        pdas = await SwapOrderAddresses.from_user(wallet.public_key)
+
+        ix = create({
+            "give_size": template.give_size,
+            "receive_size": template.receive_size,
+            "expiry": template.expiry,
+            "is_counterparty_provided": template.is_counterparty_provided,
+            "is_whitelisted": template.is_whitelisted
+            }, {
+            "payer": wallet.public_key, # signer
+            "authority": wallet.public_key,
+            "user_orders": pdas.user_orders_addr,
+            "swap_order": pdas.swap_order_addr,
+            "give_pool": pdas.give_pool_addr,
+            "give_mint": template.give_mint,
+            "receive_pool": pdas.receive_pool_addr,
+            "receive_mint": template.receive_mint,
+            "creator_give_pool": template.creator_give_pool,
+            "counterparty": template.counterparty,
+            "whitelist_token_mint": template.whitelist_token_mint,
+            "system_program": SYS_PROGRAM_ID,
+            "token_program": TOKEN_PROGRAM_ID,
+            "rent": SYSVAR_RENT_PUBKEY
+        })
+
+        tx = Transaction().add(ix)
+
+        # print('create ix data: {}'.format(ix.data))
+        # print('create ix accounts: {}'.format(ix.keys))
+
+        provider = Provider(
+            client, wallet
+        )
+
+        print('sending create tx...')
+        tx_resp = await provider.send(tx, [])
+        print(tx_resp)
+
+        await client.confirm_transaction(tx_resp)
+
+        await asyncio.sleep(1)
+        acc = await SwapOrder.fetch(client, swap_order_addr)
+
+        await client.close()
+
+        return acc
+
+
 
     async def validate_and_exec_bid(self, wallet: Wallet, bid_details: BidDetails):
         """
@@ -177,7 +295,7 @@ class SwapContract():
         await client.confirm_transaction(tx_resp)
         await client.close()
 
-    async def create_offer(self, wallet: Wallet, template: SwapOrderTemplate) -> SwapOrder:
+    async def reclaim_assets_post_fill(self, wallet: Wallet, template: SwapOrderTemplate) -> SwapOrder:
         """
         Method to create offer
         Args:
@@ -192,72 +310,35 @@ class SwapContract():
         """
 
         client = AsyncClient(self.url)
-        res = await client.is_connected()
+        await client.is_connected()
 
-        user_orders_seeds = [str.encode("userOrders"), bytes(wallet.public_key)]
-        [user_orders_addr, _] = PublicKey.find_program_address(
-            user_orders_seeds,
-            PROGRAM_ID
-        )
-
-        acc = await UserOrders.fetch(client, user_orders_addr)
-        if acc is None:
-            order_id = 0
-        else:
-            order_id = acc.curr_order_id
-
-        print('order id = {}'.format(order_id))
-
-        swap_order_seeds = [str.encode("swapOrder"), bytes(wallet.public_key), order_id.to_bytes(8, byteorder="little")]
-        [swap_order_addr, _] = PublicKey.find_program_address(
-            swap_order_seeds,
-            PROGRAM_ID
-        )
-
-        give_pool_seeds = [ str.encode("givePool"), bytes(swap_order_addr)]
-        [give_pool_addr, _] = PublicKey.find_program_address(
-            give_pool_seeds,
-            PROGRAM_ID
-        )
-    
-        receive_pool_seeds = [ str.encode("receivePool"), bytes(swap_order_addr)]
-        [receive_pool_addr, _] = PublicKey.find_program_address(
-            receive_pool_seeds,
-            PROGRAM_ID
-        )
+        pdas = await SwapOrderAddresses.from_user(client, wallet.public_key)
     
         ix = create({
-        "give_size": template.give_size,
-        "receive_size": template.receive_size,
-        "expiry": template.expiry,
-        "is_counterparty_provided": template.is_counterparty_provided,
-        "is_whitelisted": template.is_whitelisted
-        }, {
-        "payer": wallet.public_key, # signer
-        "authority": wallet.public_key,
-        "user_orders": user_orders_addr,
-        "swap_order": swap_order_addr,
-        "give_pool": give_pool_addr,
-        "give_mint": template.give_mint,
-        "receive_pool": receive_pool_addr,
-        "receive_mint": template.receive_mint,
-        "creator_give_pool": template.creator_give_pool,
-        "counterparty": template.counterparty,
-        "whitelist_token_mint": template.whitelist_token_mint,
-        "system_program": SYS_PROGRAM_ID,
-        "token_program": TOKEN_PROGRAM_ID,
-        "rent": SYSVAR_RENT_PUBKEY
+            "give_size": template.give_size,
+            "receive_size": template.receive_size,
+            "expiry": template.expiry,
+            "is_counterparty_provided": template.is_counterparty_provided,
+            "is_whitelisted": template.is_whitelisted
+            }, {
+            "payer": wallet.public_key, # signer
+            "authority": wallet.public_key,
+            "user_orders": pdas.user_orders_addr,
+            "swap_order": pdas.swap_order_addr,
+            "give_pool": pdas.give_pool_addr,
+            "give_mint": template.give_mint,
+            "receive_pool": pdas.receive_pool_addr,
+            "receive_mint": template.receive_mint,
+            "creator_give_pool": template.creator_give_pool,
+            "counterparty": template.counterparty,
+            "whitelist_token_mint": template.whitelist_token_mint,
+            "system_program": SYS_PROGRAM_ID,
+            "token_program": TOKEN_PROGRAM_ID,
+            "rent": SYSVAR_RENT_PUBKEY
         })
 
-        # blockhash_resp = (await client.get_recent_blockhash())
-        # print('blockhash response: {}'.format(blockhash_resp))
-        # blockhash = blockhash_resp['result']['value']['blockhash']
         tx = Transaction().add(ix)
 
-        print('create ix data: {}'.format(ix.data))
-        print('create ix accounts: {}'.format(ix.keys))
-
-        # tx = wallet.sign_transaction(tx)
         provider = Provider(
             client, wallet
         )
@@ -274,3 +355,34 @@ class SwapContract():
         await client.close()
 
         return acc
+
+
+    async def cancel_order(self, wallet: Wallet, order_id: int, creator_give_pool: PublicKey) -> SwapOrder:
+
+        client = AsyncClient(self.url)
+        await client.is_connected()
+       
+        pdas = await SwapOrderAddresses.from_user(client, wallet.public_key)
+
+        ix = cancel({
+        "authority": wallet.public_key,
+        "swap_order": pdas.swap_order_addr,
+        "give_pool": pdas.give_pool_addr,
+        "creator_give_pool": creator_give_pool,
+        "receive_pool": pdas.receive_pool_addr,
+        "system_program": SYS_PROGRAM_ID,
+        "token_program": TOKEN_PROGRAM_ID,
+        })
+
+        tx = Transaction().add(ix)
+
+        provider = Provider(
+            client, wallet
+        )
+
+        print('sending cancel tx...')
+        tx_resp = await provider.send(tx, [])
+        print(tx_resp)
+
+        await client.confirm_transaction(tx_resp)
+        await client.close()

@@ -63,6 +63,8 @@ async def main_def():
         print('DEBUG: error when creating associated token account. Ignore this usually!\n e = {}'.format(e))
          
 
+    print('1. creator initializes swap offer...')
+
     offer_1 = await c.create_offer(
         wallet, SwapOrderTemplate(
             1, 1, int(time.time()) + 10000,
@@ -80,14 +82,13 @@ async def main_def():
         wallet.public_key, offer_1.order_id
     )
 
-    print('swap order 1 = ', offer_1)
-    print('swap order 2 = ', offer_2)
-    print('should be equal!')
     assert offer_1.status == Created()
     assert offer_2.status == Created()
     assert offer_1.give_size == offer_2.give_size
     assert offer_1.receive_size == offer_2.receive_size
     assert offer_1 == offer_2
+
+    print('2. taker executes bid against offer...')
 
     # fill offer via bid
     await c.validate_and_exec_bid(
@@ -104,10 +105,15 @@ async def main_def():
 
     assert offer_3.status == Filled()
 
-    print('Finished!')
     
     print('order post fill: {}'.format(offer_3))
 
+    print('3. creator reclaims assets...')
+
+
+    print('Finished!')
+
+    
     await client.close()
     
 asyncio.run(main_def())

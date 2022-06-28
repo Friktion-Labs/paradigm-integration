@@ -5,17 +5,20 @@ This python SDK enables interaction with the on-chain Friktion swap program. Thi
 
 ## Setup
 
-
 0. look at ../README.md (top-level in this repo), install all dependencies described there (solana + anchor)
 1. ```poetry install```
-2. set ANCHOR_PROVIDER_URL (rpc url) and ANCHOR_WALLET (file that has keypair of wallet) bash env variables (export them in terminal)
+2. ```poetry shell```
+3. set ANCHOR_PROVIDER_URL (rpc url) and ANCHOR_WALLET (file that has keypair of wallet) bash env variables (export them in terminal)
       (NOTE: ANCHOR_PROVIDER_URL determines if devnet, testnet, mainnet, etc)
       (NOTE: make sure you have SOL in the ANCHOR_WALLET for the correct cluster)
 
-Example for step #2: 
+Example for step #3: 
      ```export ANCHOR_PROVIDER_URL=https://api.devnet.solana.com```
      ```export ANCHOR_WALLET=~/.config/solana/id.json```
-     
+    
+4. ```solana-keygen pubkey $ANCHOR_WALLET | xargs solana airdrop 1```
+5. ensure you have devnet tokens for the GIVE_MINT and RECEIVE_MINT specified at the top of ```main.py```
+
 ## Testing
 
 The following command will run a script that 1. creates an offer 2. fetches the offer (and asserts that it is available to execute), 3. fills the offer with a corresponding bid
