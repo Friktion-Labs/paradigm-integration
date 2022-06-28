@@ -75,9 +75,14 @@ def main():
             } 
         )
         print(response)
+    elif i == 'list':
+        all_user_vrfqs = get_vrfqs()
+        print('all vrfqs: ', all_user_vrfqs)
     elif i == 'print':
         auction_deets = get_vrfq_from_db(db, args.vid)
+        auction_newest = get_vrfq(args.vid)
         print(auction_deets)
+        print(auction_newest)
     elif i == 'printQuotes':
         auction_deets = get_vrfq_from_db(db, args.vid)
         print('AUCTION\n--------')
@@ -85,7 +90,6 @@ def main():
         quotes_for_auction = json.loads(get_vrfqs_with_quotes(args.vid))
         print('QUOTES\n--------')
         print(quotes_for_auction)
-
     elif i == 'setComplete':
         Order = Query()
         order = db.search(
