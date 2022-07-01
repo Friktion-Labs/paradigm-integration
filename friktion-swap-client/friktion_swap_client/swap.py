@@ -22,6 +22,8 @@ from solana.rpc.commitment import Processed
 from solana.publickey import PublicKey
 from solana.utils.helpers import decode_byte_string
 import spl.token._layouts as layouts
+from spl.token.client import Token
+
 import sys
 sys.path.insert(0, "/Users/alexwlezien/Friktion/paradigm-integration/friktion-anchor")
 from .friktion_anchor.accounts import SwapOrder, UserOrders
@@ -59,6 +61,7 @@ def get_url_for_network(network: Network) -> str:
         # mainnet
         return "https://solana-api.projectserum.com"
 
+MIN_REQUIRED_ALLOWANCE = 100
 
 # ---------------------------------------------------------------------------
 # Swap Program
@@ -72,6 +75,53 @@ class SwapContract():
         self.network = network
         self.url = get_url_for_network(network)
 
+
+    # delegate should be the PDA of the swap order
+    def give_allowance(self, wallet: Wallet, bid_details: BidDetails, mint: PublicKey, delegate: PublicKey, allowance: int):
+        # assert bid_details.
+        pdas = SwapOrderAddresses(bid_details.swap_order_owner, bid_details.order_id)
+
+        assert delegate == pdas.swap_order_address 
+
+        token_acct_to_delegate = bid_details.counterparty_receive_pool
+
+        client = Client(self.url)
+        token = Token(
+            client,
+            mint,
+            TOKEN_PROGRAM_ID,
+            wallet.payer
+        )
+
+        acct_info = token.get_account_info(token_acct_to_delegate)
+        # use a global authority for all swaps
+        # assert acct_info.owner == swap_order.counterparty
+        
+        token.approve(
+            token_acct_to_delegate,
+            delegate,
+            wallet.public_key,
+            allowance
+        )
+
+        return True
+    
+    # delegate should be the PDA of the swap order
+    def verify_allowance(self, wallet: Wallet, swap_order_key: PublicKey, mint: PublicKey, token_account: PublicKey):
+        client = Client(self.url)
+        token = Token(
+            client,
+            mint,
+            TOKEN_PROGRAM_ID,
+            wallet.payer
+        )
+        
+        acct_info = token.get_account_info(token_account)
+
+        assert acct_info.delegate == swap_order_key
+        assert acct_info.delegated_amount > MIN_REQUIRED_ALLOWANCE
+
+        return acct_info.delegated_amount
 
     """
     Object used to interact with swap contract

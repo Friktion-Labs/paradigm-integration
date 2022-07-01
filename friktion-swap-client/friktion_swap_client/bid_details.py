@@ -7,7 +7,6 @@ from .friktion_anchor.program_id import PROGRAM_ID
 from .friktion_anchor.instructions import create
 from solana.rpc.async_api import AsyncClient
 from .constants import WHITELIST_TOKEN_MINT
-
 class BidDetails():
 
     swap_order_owner: PublicKey
@@ -26,3 +25,11 @@ class BidDetails():
         self.order_id = order_id
         self.counterparty_give_pool = counterparty_give_pool
         self.counterparty_receive_pool = counterparty_receive_pool
+
+    def as_signed_msg(self, wallet: Wallet, receive_amount: int, give_amount: int):
+        wallet.payer.sign(bytes([
+            self.order_id,
+            wallet.public_key,
+            give_amount,
+            receive_amount,
+        ]))

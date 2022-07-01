@@ -82,15 +82,16 @@ impl SwapOrder {
         &mut self,
         counterparty: &AccountInfo,
         whitelist_token_account_raw: &AccountInfo,
+        msg_verified: bool,
     ) -> Result<()> {
         require!(self.status == OrderStatus::Created, OrderMustBeTrading);
 
         if self.is_counterparty_provided {
-            require!(counterparty.is_signer, CounterpartyMustBeSigner);
             require!(
-                !self.is_counterparty_provided || counterparty.key == &self.counterparty,
-                InvalidCounterParty
+                msg_verified || counterparty.is_signer,
+                CounterpartyMustBeSigner
             );
+            require!(counterparty.key == &self.counterparty, InvalidCounterParty);
         }
 
         if self.is_whitelisted {

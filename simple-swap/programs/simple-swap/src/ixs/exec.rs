@@ -75,6 +75,7 @@ pub fn handler<'a, 'b, 'c, 'info>(ctx: Context<'a, 'b, 'c, 'info, Exec<'info>>) 
     swap_order.fill(
         &ctx.accounts.authority,
         &ctx.accounts.whitelist_token_account,
+        false,
     )?;
 
     Ok(())
