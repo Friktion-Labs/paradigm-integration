@@ -14,7 +14,7 @@ use crate::{SwapOrder, UserOrders};
     is_whitelisted: bool,
 )]
 pub struct Create<'info> {
-    #[account(mut, 
+    #[account(mut,
         constraint = payer.owner != &crate::id()
     )]
     /// CHECK: just pays for stuff, can be any account. checked by macro that it's not owned by this program haha
@@ -50,7 +50,7 @@ pub struct Create<'info> {
     #[account(init, seeds = [
          b"givePool",
         &swap_order.key().to_bytes()[..],
-        ], 
+        ],
         bump,
         payer=payer,
         token::mint=give_mint,
@@ -63,7 +63,7 @@ pub struct Create<'info> {
     #[account(init, seeds = [
          b"receivePool",
         &swap_order.key().to_bytes()[..],
-        ], 
+        ],
         bump,
         payer=payer,
         token::mint=receive_mint,
@@ -128,7 +128,6 @@ pub fn handler<'a, 'b, 'c, 'info>(
         swap_order.is_whitelisted = false;
     }
 
-    
     token::transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),

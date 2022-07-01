@@ -90,14 +90,18 @@ async def main_def():
 
     print('2. taker executes bid against offer...')
 
-    # fill offer via bid
-    await c.validate_and_exec_bid(
-        wallet, BidDetails(
+    bid_details =  BidDetails(
             wallet.public_key, offer_1.order_id,
             creator_give_pool_key,
             creator_receive_pool_key
         )
+    # fill offer via bid
+    await c.validate_bid(
+        wallet,
+        bid_details
     )
+
+    bid_msg = bid_details.as_signed_msg(wallet, 1, 1)
 
     offer_3 = await c.get_offer_details(
         wallet.public_key, offer_1.order_id

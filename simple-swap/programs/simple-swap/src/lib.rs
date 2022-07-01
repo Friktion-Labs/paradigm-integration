@@ -7,12 +7,18 @@ pub mod swap;
 pub use ixs::*;
 pub use swap::*;
 
+mod swap_admin {
+    use solana_program::declare_id;
+
+    declare_id!("DxMJgeSVoe1cWo1NPExiAsmn83N3bADvkT86dSP1k7WE");
+}
+
 declare_id!("SwpWEbAhitpix22gbX28zah7g8JiA1FRwVdPe4XohQb");
 #[program]
 pub mod simple_swap {
     use crate::{
-        ixs::{self, Cancel, Create, Exec},
-        Claim, 
+        ixs::{self, Cancel, Create, Exec, ExecMsg},
+        Claim,
     };
     use anchor_lang::prelude::*;
     pub fn create<'a, 'b, 'c, 'info>(
@@ -35,6 +41,14 @@ pub mod simple_swap {
 
     pub fn exec<'a, 'b, 'c, 'info>(ctx: Context<'a, 'b, 'c, 'info, Exec<'info>>) -> Result<()> {
         ixs::exec::handler(ctx)
+    }
+    pub fn exec_msg<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, ExecMsg<'info>>,
+        signature: String,
+        caller: Pubkey,
+        raw_msg: String,
+    ) -> Result<()> {
+        ixs::exec_msg::handler(ctx, signature, caller, raw_msg)
     }
 
     pub fn cancel<'a, 'b, 'c, 'info>(ctx: Context<'a, 'b, 'c, 'info, Cancel<'info>>) -> Result<()> {
@@ -87,4 +101,11 @@ pub enum ErrorCode {
 
     #[msg("order must be trading")]
     OrderMustBeTrading,
+    #[msg("invalid ed25519 program")]
+    InvalidEd25519Program,
+    #[msg("invalid swap admin")]
+    InvalidSwapAdmin,
+
+    #[msg("")]
+    InvalidEd25519InstructionData,
 }
