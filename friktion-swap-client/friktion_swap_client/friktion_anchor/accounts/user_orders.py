@@ -34,6 +34,7 @@ class UserOrders:
         commitment: typing.Optional[Commitment] = None,
     ) -> typing.Optional["UserOrders"]:
         resp = await conn.get_account_info(address, commitment=commitment)
+        print(resp)
         info = resp["result"]["value"]
         if info is None:
             return None
