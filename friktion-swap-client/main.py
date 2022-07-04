@@ -26,7 +26,8 @@ WHITELIST_TOKEN_MINT = GIVE_MINT
 async def main_def():
 
     client = AsyncClient(c.url)
-    res = await client.is_connected()
+    await client.is_connected()
+    
     give_token = AsyncToken(
         client,
         GIVE_MINT,
@@ -50,11 +51,6 @@ async def main_def():
     creator_receive_pool_key = get_associated_token_address(
         wallet.public_key,
         RECEIVE_MINT
-    )
-
-    counterparty_give_pool_key = get_associated_token_address(
-        wallet.public_key,
-        GIVE_MINT
     )
 
     counterparty_receive_pool_key = get_associated_token_address(
@@ -83,7 +79,7 @@ async def main_def():
 
     print('1. creator initializes swap offer...')
 
-    offer_1 = await c.create_offer(
+    offer = await c.create_offer(
         wallet, SwapOrderTemplate(
             1, 1, int(time.time()) + 10000,
             GIVE_MINT, RECEIVE_MINT,
@@ -95,21 +91,12 @@ async def main_def():
         )
     )
 
-    # retrieve offer, check values match as expected
-    offer_2 = await c.get_offer_details(
-        wallet.public_key, offer_1.order_id
-    )
-
-    assert offer_1.status == Created()
-    assert offer_2.status == Created()
-    assert offer_1.give_size == offer_2.give_size
-    assert offer_1.receive_size == offer_2.receive_size
-    assert offer_1 == offer_2
+    assert offer.status == Created()
 
     print('2. taker executes bid against offer...')
 
     bid_details =  BidDetails(
-            wallet.public_key, offer_1.order_id,
+            wallet.public_key, offer.order_id,
             creator_give_pool_key,
             creator_receive_pool_key
         )
@@ -117,7 +104,7 @@ async def main_def():
     await c.validate_bid(
         wallet,
         bid_details,
-        offer_1
+        offer
     )
 
     bid_msg = bid_details.as_signed_msg(wallet, 1, 1)
@@ -125,19 +112,16 @@ async def main_def():
     await c.validate_and_exec_bid_msg(wallet, bid_details, bid_msg)
 
     offer_3 = await c.get_offer_details(
-        wallet.public_key, offer_1.order_id
+        wallet.public_key, offer.order_id
     )
 
     assert offer_3.status == Filled()
 
-    
     print('order post fill: {}'.format(offer_3))
 
     print('3. creator reclaims assets...')
 
-
     print('Finished!')
-
     
     await client.close()
     
