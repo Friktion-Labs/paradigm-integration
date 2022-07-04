@@ -8,7 +8,7 @@
 from dataclasses import asdict
 import time
 from friktion_swap_client.friktion_anchor.instructions import cancel
-from friktion_swap_client.pda import SwapOrderAddresses, find_give_pool_address, find_receive_pool_address, find_swap_order_address, find_user_orders_address
+from friktion_swap_client.pda import DELEGATE_AUTHORITY_ADDRESS, SwapOrderAddresses, find_give_pool_address, find_receive_pool_address, find_swap_order_address, find_user_orders_address
 from solana.utils import helpers
 from shutil import ExecError
 from anchorpy import Wallet
@@ -23,13 +23,14 @@ from solana.publickey import PublicKey
 from solana.utils.helpers import decode_byte_string
 import spl.token._layouts as layouts
 from spl.token.client import Token
-
+from nacl import signing
 import sys
 sys.path.insert(0, "/Users/alexwlezien/Friktion/paradigm-integration/friktion-anchor")
 from .friktion_anchor.accounts import SwapOrder, UserOrders
 from .friktion_anchor.program_id import PROGRAM_ID
 from solana.sysvar import SYSVAR_RENT_PUBKEY
-from .friktion_anchor.instructions import create, exec
+from solana.sysvar import SYSVAR_INSTRUCTIONS_PUBKEY
+from .friktion_anchor.instructions import create, exec, exec_msg
 from solana.rpc.async_api import AsyncClient
 from solana.system_program import SYS_PROGRAM_ID
 from .swap_order_template import SwapOrderTemplate
@@ -77,13 +78,7 @@ class SwapContract():
 
 
     # delegate should be the PDA of the swap order
-    def give_allowance(self, wallet: Wallet, bid_details: BidDetails, mint: PublicKey, delegate: PublicKey, allowance: int):
-        # assert bid_details.
-        pdas = SwapOrderAddresses(bid_details.swap_order_owner, bid_details.order_id)
-
-        assert delegate == pdas.swap_order_address 
-
-        token_acct_to_delegate = bid_details.counterparty_receive_pool
+    def give_allowance(self, wallet: Wallet, token_acct_to_delegate: PublicKey, mint: PublicKey, allowance: int):
 
         client = Client(self.url)
         token = Token(
@@ -99,7 +94,7 @@ class SwapContract():
         
         token.approve(
             token_acct_to_delegate,
-            delegate,
+            DELEGATE_AUTHORITY_ADDRESS,
             wallet.public_key,
             allowance
         )
@@ -107,7 +102,7 @@ class SwapContract():
         return True
     
     # delegate should be the PDA of the swap order
-    def verify_allowance(self, wallet: Wallet, swap_order_key: PublicKey, mint: PublicKey, token_account: PublicKey):
+    def verify_allowance(self, wallet: Wallet, mint: PublicKey, token_account: PublicKey):
         client = Client(self.url)
         token = Token(
             client,
@@ -117,9 +112,9 @@ class SwapContract():
         )
         
         acct_info = token.get_account_info(token_account)
-
-        assert acct_info.delegate == swap_order_key
-        assert acct_info.delegated_amount > MIN_REQUIRED_ALLOWANCE
+        print(acct_info.delegated_amount)
+        assert acct_info.delegate == DELEGATE_AUTHORITY_ADDRESS
+        assert acct_info.delegated_amount >= MIN_REQUIRED_ALLOWANCE
 
         return acct_info.delegated_amount
 
@@ -167,60 +162,6 @@ class SwapContract():
             "error": None
         }
 
-    async def validate_and_exec_bid(self, wallet: Wallet, bid_details: BidDetails):
-        """
-        Method to validate bid
-        Args:
-        Returns:
-            response (dict): Dictionary containing number of errors (errors)
-              and the corresponding error messages (messages)
-        """
-
-        client = AsyncClient(self.url)
-        res = await client.is_connected()
-
-        swap_order_owner = bid_details.swap_order_owner
-        order_id = bid_details.order_id
-
-        [swap_order_addr, bump] = find_swap_order_address(swap_order_owner, order_id)
-
-        acc = await SwapOrder.fetch(client, swap_order_addr)
-        if acc is None:
-            raise ValueError("No swap found for user = ", swap_order_owner, ', order id = ', order_id)
-
-        error_dict = await self.validate_bid(wallet, bid_details, acc)
-        if error_dict['error'] is not None:
-            await client.close()
-            return error_dict
-        
-        ix = exec({
-            "authority": wallet.public_key, # signer
-            "swap_order": swap_order_addr,
-            "give_pool": acc.give_pool,
-            "receive_pool": acc.receive_pool,
-            "counterparty_give_pool": bid_details.counterparty_give_pool,
-            "counterparty_receive_pool": bid_details.counterparty_receive_pool,
-            # pass in a dummy value since not using whitelisting right now
-            "whitelist_token_account": SYS_PROGRAM_ID,
-            "system_program": SYS_PROGRAM_ID,
-            "token_program": TOKEN_PROGRAM_ID,
-        })
-
-        tx = Transaction().add(ix)
-
-        provider = Provider(
-            client, wallet
-        )
-
-        print('sending exec tx...')
-        
-        tx_resp = await provider.send(tx, [])
-
-        print(tx_resp)
-
-        await client.confirm_transaction(tx_resp)
-        await client.close()
-
     async def create_offer(self, wallet: Wallet, template: SwapOrderTemplate) -> SwapOrder:
         """
         Method to create offer
@@ -238,7 +179,7 @@ class SwapContract():
         client = AsyncClient(self.url)
         await client.is_connected()
 
-        pdas = await SwapOrderAddresses.from_user(wallet.public_key)
+        pdas : SwapOrderAddresses = await SwapOrderAddresses.from_user(client, wallet.public_key)
 
         ix = create({
             "give_size": template.give_size,
@@ -249,11 +190,11 @@ class SwapContract():
             }, {
             "payer": wallet.public_key, # signer
             "authority": wallet.public_key,
-            "user_orders": pdas.user_orders_addr,
-            "swap_order": pdas.swap_order_addr,
-            "give_pool": pdas.give_pool_addr,
+            "user_orders": pdas.user_orders_address,
+            "swap_order": pdas.swap_order_address,
+            "give_pool": pdas.give_pool_address,
             "give_mint": template.give_mint,
-            "receive_pool": pdas.receive_pool_addr,
+            "receive_pool": pdas.receive_pool_address,
             "receive_mint": template.receive_mint,
             "creator_give_pool": template.creator_give_pool,
             "counterparty": template.counterparty,
@@ -279,11 +220,68 @@ class SwapContract():
         await client.confirm_transaction(tx_resp)
 
         await asyncio.sleep(1)
-        acc = await SwapOrder.fetch(client, swap_order_addr)
+        acc = await SwapOrder.fetch(client, pdas.swap_order_address)
 
         await client.close()
 
         return acc
+
+
+    async def validate_and_exec_bid_msg(self, wallet: Wallet, bid_details: BidDetails, signed_msg: signing.SignedMessage):
+        """
+        Method to execute bid via signed message
+        """
+
+        client = AsyncClient(self.url)
+        res = await client.is_connected()
+
+        swap_order_owner = bid_details.swap_order_owner
+        order_id = bid_details.order_id
+
+        pdas = SwapOrderAddresses(bid_details.swap_order_owner, bid_details.order_id)
+
+        acc = await SwapOrder.fetch(client, pdas.swap_order_address)
+        if acc is None:
+            raise ValueError("No swap found for user = ", swap_order_owner, ', order id = ', order_id)
+
+        error_dict = await self.validate_bid(wallet, bid_details, acc)
+        if error_dict['error'] is not None:
+            await client.close()
+            return error_dict
+        
+        ix = exec_msg({
+            "signature": str(signed_msg.signature),
+            "caller": wallet.public_key,
+            "raw_msg": str(signed_msg.message)
+        },{
+            "authority": wallet.public_key, # signer
+            "delegate_authority": pdas.delegate_authority_address,
+            "swap_order": pdas.swap_order_address,
+            "give_pool": acc.give_pool,
+            "receive_pool": acc.receive_pool,
+            "counterparty_give_pool": bid_details.counterparty_give_pool,
+            "counterparty_receive_pool": bid_details.counterparty_receive_pool,
+            # pass in a dummy value since not using whitelisting right now
+            "whitelist_token_account": SYS_PROGRAM_ID,
+            "instruction_sysvar": SYSVAR_INSTRUCTIONS_PUBKEY,
+            "system_program": SYS_PROGRAM_ID,
+            "token_program": TOKEN_PROGRAM_ID,
+        })
+
+        tx = Transaction().add(ix)
+
+        provider = Provider(
+            client, wallet
+        )
+
+        print('sending exec MSG tx...')
+        
+        tx_resp = await provider.send(tx, [])
+
+        print(tx_resp)
+
+        await client.confirm_transaction(tx_resp)
+        await client.close()
 
 
 
@@ -362,7 +360,7 @@ class SwapContract():
         client = AsyncClient(self.url)
         await client.is_connected()
 
-        pdas = await SwapOrderAddresses.from_user(client, wallet.public_key)
+        pdas: SwapOrderAddresses = await SwapOrderAddresses.from_user(client, wallet.public_key)
     
         ix = create({
             "give_size": template.give_size,
@@ -400,7 +398,7 @@ class SwapContract():
         await client.confirm_transaction(tx_resp)
 
         await asyncio.sleep(1)
-        acc = await SwapOrder.fetch(client, swap_order_addr)
+        acc = await SwapOrder.fetch(client, pdas.swap_order_address)
 
         await client.close()
 
@@ -412,14 +410,14 @@ class SwapContract():
         client = AsyncClient(self.url)
         await client.is_connected()
        
-        pdas = await SwapOrderAddresses.from_user(client, wallet.public_key)
+        pdas : SwapOrderAddresses = await SwapOrderAddresses.from_user(client, wallet.public_key)
 
         ix = cancel({
         "authority": wallet.public_key,
-        "swap_order": pdas.swap_order_addr,
-        "give_pool": pdas.give_pool_addr,
+        "swap_order": pdas.swap_order_address,
+        "give_pool": pdas.give_pool_address,
         "creator_give_pool": creator_give_pool,
-        "receive_pool": pdas.receive_pool_addr,
+        "receive_pool": pdas.receive_pool_address,
         "system_program": SYS_PROGRAM_ID,
         "token_program": TOKEN_PROGRAM_ID,
         })

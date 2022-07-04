@@ -155,6 +155,33 @@ class OrderMustBeTrading(ProgramError):
     msg = "order must be trading"
 
 
+class InvalidEd25519Program(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6017, "invalid ed25519 program")
+
+    code = 6017
+    name = "InvalidEd25519Program"
+    msg = "invalid ed25519 program"
+
+
+class InvalidSwapAdmin(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6018, "invalid swap admin")
+
+    code = 6018
+    name = "InvalidSwapAdmin"
+    msg = "invalid swap admin"
+
+
+class InvalidEd25519InstructionData(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6019, "")
+
+    code = 6019
+    name = "InvalidEd25519InstructionData"
+    msg = ""
+
+
 CustomError = typing.Union[
     InvalidCounterParty,
     InvalidGivePool,
@@ -173,6 +200,9 @@ CustomError = typing.Union[
     GivePoolMustBeEmpty,
     OrderMustBeFilled,
     OrderMustBeTrading,
+    InvalidEd25519Program,
+    InvalidSwapAdmin,
+    InvalidEd25519InstructionData,
 ]
 CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6000: InvalidCounterParty(),
@@ -192,6 +222,9 @@ CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6014: GivePoolMustBeEmpty(),
     6015: OrderMustBeFilled(),
     6016: OrderMustBeTrading(),
+    6017: InvalidEd25519Program(),
+    6018: InvalidSwapAdmin(),
+    6019: InvalidEd25519InstructionData(),
 }
 
 

@@ -24,6 +24,7 @@ WHITELIST_TOKEN_MINT = GIVE_MINT
 # RECEIVE_MINT = PublicKey("")
 
 async def main_def():
+
     client = AsyncClient(c.url)
     res = await client.is_connected()
     give_token = AsyncToken(
@@ -51,17 +52,34 @@ async def main_def():
         RECEIVE_MINT
     )
 
+    counterparty_give_pool_key = get_associated_token_address(
+        wallet.public_key,
+        GIVE_MINT
+    )
+
+    counterparty_receive_pool_key = get_associated_token_address(
+        wallet.public_key,
+        RECEIVE_MINT
+    )
+
     # create associated token accounts
     try:
         await give_token.create_associated_token_account(wallet.public_key)
     except RPCException as e:
-        print('DEBUG: error when creating associated token account. Ignore this usually!\n e = {}'.format(e))
+        print('DEBUG: already created associated token account. Ignore this usually!\n e = {}'.format(e))
 
     try:
         await receive_token.create_associated_token_account(wallet.public_key)
     except RPCException as e:
-        print('DEBUG: error when creating associated token account. Ignore this usually!\n e = {}'.format(e))
+        print('DEBUG: already created associated token account. Ignore this usually!\n e = {}'.format(e))
          
+
+    try:
+        print('current allowance: ', c.verify_allowance(wallet, RECEIVE_MINT, counterparty_receive_pool_key))
+    except AssertionError:
+        print("allowance needs to be delegated, doing...")
+        c.give_allowance(wallet, counterparty_receive_pool_key, RECEIVE_MINT,  MIN_REQUIRED_ALLOWANCE)
+        c.verify_allowance(wallet, RECEIVE_MINT, counterparty_receive_pool_key)
 
     print('1. creator initializes swap offer...')
 
@@ -98,10 +116,13 @@ async def main_def():
     # fill offer via bid
     await c.validate_bid(
         wallet,
-        bid_details
+        bid_details,
+        offer_1
     )
 
     bid_msg = bid_details.as_signed_msg(wallet, 1, 1)
+
+    await c.validate_and_exec_bid_msg(wallet, bid_details, bid_msg)
 
     offer_3 = await c.get_offer_details(
         wallet.public_key, offer_1.order_id
