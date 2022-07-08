@@ -182,6 +182,15 @@ class InvalidEd25519InstructionData(ProgramError):
     msg = ""
 
 
+class OptionAndGiveMintDontMatch(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6020, "option and give mint don't match")
+
+    code = 6020
+    name = "OptionAndGiveMintDontMatch"
+    msg = "option and give mint don't match"
+
+
 CustomError = typing.Union[
     InvalidCounterParty,
     InvalidGivePool,
@@ -203,6 +212,7 @@ CustomError = typing.Union[
     InvalidEd25519Program,
     InvalidSwapAdmin,
     InvalidEd25519InstructionData,
+    OptionAndGiveMintDontMatch,
 ]
 CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6000: InvalidCounterParty(),
@@ -225,6 +235,7 @@ CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6017: InvalidEd25519Program(),
     6018: InvalidSwapAdmin(),
     6019: InvalidEd25519InstructionData(),
+    6020: OptionAndGiveMintDontMatch(),
 }
 
 

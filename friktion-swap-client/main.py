@@ -1,3 +1,4 @@
+from friktion_swap_client.offer import Offer
 from friktion_swap_client.swap import *
 import time
 import asyncio
@@ -19,6 +20,7 @@ COUNTERPARTY = wallet.public_key
 # dummy value for testing. not using whitelist tokens so shouldn't change much
 WHITELIST_TOKEN_MINT = GIVE_MINT
 
+OPTIONS_CONTRACT_KEY = PublicKey("GriGJSF84XdPq6Td6u6Hu8oqKgwTXY94fvwJrJf1gQTW")
 # mainnet
 # GIVE_MINT = PublicKey("")
 # RECEIVE_MINT = PublicKey("")
@@ -75,14 +77,24 @@ async def main_def():
     except AssertionError:
         print("allowance needs to be delegated, doing...")
         c.give_allowance(wallet, counterparty_receive_pool_key, RECEIVE_MINT,  MIN_REQUIRED_ALLOWANCE)
+        time.sleep(5.0)
         c.verify_allowance(wallet, RECEIVE_MINT, counterparty_receive_pool_key)
 
     print('1. creator initializes swap offer...')
 
-    offer = await c.create_offer(
-        wallet, SwapOrderTemplate(
-            1, 1, int(time.time()) + 10000,
-            GIVE_MINT, RECEIVE_MINT,
+    # create a dummy offer for testing purposes
+    swap_order_post_fill = await c.create_offer(
+        wallet, SwapOrderTemplate.from_offer(
+            Offer(
+                oToken=GIVE_MINT,
+                biddingToken=RECEIVE_MINT,
+                offerAmount=1,
+                minPrice=0.0,
+                minBidSize=1
+            ), 
+            OPTIONS_CONTRACT_KEY,
+            1,
+            int(time.time()) + 10000,
             creator_give_pool_key,
             COUNTERPARTY,
             True,
@@ -91,12 +103,12 @@ async def main_def():
         )
     )
 
-    assert offer.status == Created()
+    assert swap_order_post_fill.status == Created()
 
     print('2. taker executes bid against offer...')
 
     bid_details =  BidDetails(
-            wallet.public_key, offer.order_id,
+            wallet.public_key, swap_order_post_fill.order_id,
             creator_give_pool_key,
             creator_receive_pool_key
         )
@@ -104,20 +116,28 @@ async def main_def():
     await c.validate_bid(
         wallet,
         bid_details,
-        offer
+        swap_order_post_fill
     )
 
     bid_msg = bid_details.as_signed_msg(wallet, 1, 1)
-
     await c.validate_and_exec_bid_msg(wallet, bid_details, bid_msg)
 
-    offer_3 = await c.get_offer_details(
-        wallet.public_key, offer.order_id
+    offer_post_fill: Offer = await c.get_offer_details(
+        wallet.public_key, swap_order_post_fill.order_id
     )
 
-    assert offer_3.status == Filled()
+    swap_order_post_fill: SwapOrder = await c.get_swap_order(
+        wallet.public_key, swap_order_post_fill.order_id
+    )
 
-    print('order post fill: {}'.format(offer_3))
+    assert swap_order_post_fill.status == Filled()
+
+    print(
+        'otoken details =',
+        await c.get_otoken_details_for_offer(offer_post_fill)
+    )
+
+    print('order post fill: {}'.format(swap_order_post_fill))
 
     print('3. creator reclaims assets...')
 

@@ -30,6 +30,7 @@ class SwapOrderJSON(typing.TypedDict):
     is_disabled: bool
     status: types.order_status.OrderStatusJSON
     order_id: int
+    options_contract: str
     bump: int
 
 
@@ -53,6 +54,7 @@ class SwapOrder:
         "is_disabled" / borsh.Bool,
         "status" / types.order_status.layout,
         "order_id" / borsh.U64,
+        "options_contract" / BorshPubkey,
         "bump" / borsh.U8,
     )
     creator: PublicKey
@@ -71,6 +73,7 @@ class SwapOrder:
     is_disabled: bool
     status: types.order_status.OrderStatusKind
     order_id: int
+    options_contract: PublicKey
     bump: int
 
     @classmethod
@@ -131,6 +134,7 @@ class SwapOrder:
             is_disabled=dec.is_disabled,
             status=types.order_status.from_decoded(dec.status),
             order_id=dec.order_id,
+            options_contract=dec.options_contract,
             bump=dec.bump,
         )
 
@@ -152,6 +156,7 @@ class SwapOrder:
             "is_disabled": self.is_disabled,
             "status": self.status.to_json(),
             "order_id": self.order_id,
+            "options_contract": str(self.options_contract),
             "bump": self.bump,
         }
 
@@ -174,5 +179,6 @@ class SwapOrder:
             is_disabled=obj["is_disabled"],
             status=types.order_status.from_json(obj["status"]),
             order_id=obj["order_id"],
+            options_contract=PublicKey(obj["options_contract"]),
             bump=obj["bump"],
         )

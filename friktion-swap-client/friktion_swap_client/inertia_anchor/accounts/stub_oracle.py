@@ -8,23 +8,29 @@ import borsh_construct as borsh
 from anchorpy.coder.accounts import ACCOUNT_DISCRIMINATOR_SIZE
 from anchorpy.error import AccountInvalidDiscriminator
 from anchorpy.utils.rpc import get_multiple_accounts
-from anchorpy.borsh_extension import BorshPubkey
 from ..program_id import PROGRAM_ID
 
 
-class UserOrdersJSON(typing.TypedDict):
-    user: str
-    curr_order_id: int
+class StubOracleJSON(typing.TypedDict):
+    magic: int
+    price: float
+    last_update: int
+    pda_str: str
 
 
 @dataclass
-class UserOrders:
-    discriminator: typing.ClassVar = b" CbS.\x05\x06\x91"
+class StubOracle:
+    discriminator: typing.ClassVar = b"\xe0\xfb\xfec\xb1\xae\x89\x04"
     layout: typing.ClassVar = borsh.CStruct(
-        "user" / BorshPubkey, "curr_order_id" / borsh.U64
+        "magic" / borsh.U32,
+        "price" / borsh.F64,
+        "last_update" / borsh.I64,
+        "pda_str" / borsh.String,
     )
-    user: PublicKey
-    curr_order_id: int
+    magic: int
+    price: float
+    last_update: int
+    pda_str: str
 
     @classmethod
     async def fetch(
@@ -32,7 +38,7 @@ class UserOrders:
         conn: AsyncClient,
         address: PublicKey,
         commitment: typing.Optional[Commitment] = None,
-    ) -> typing.Optional["UserOrders"]:
+    ) -> typing.Optional["StubOracle"]:
         resp = await conn.get_account_info(address, commitment=commitment)
         info = resp["result"]["value"]
         if info is None:
@@ -48,9 +54,9 @@ class UserOrders:
         conn: AsyncClient,
         addresses: list[PublicKey],
         commitment: typing.Optional[Commitment] = None,
-    ) -> typing.List[typing.Optional["UserOrders"]]:
+    ) -> typing.List[typing.Optional["StubOracle"]]:
         infos = await get_multiple_accounts(conn, addresses, commitment=commitment)
-        res: typing.List[typing.Optional["UserOrders"]] = []
+        res: typing.List[typing.Optional["StubOracle"]] = []
         for info in infos:
             if info is None:
                 res.append(None)
@@ -61,26 +67,32 @@ class UserOrders:
         return res
 
     @classmethod
-    def decode(cls, data: bytes) -> "UserOrders":
+    def decode(cls, data: bytes) -> "StubOracle":
         if data[:ACCOUNT_DISCRIMINATOR_SIZE] != cls.discriminator:
             raise AccountInvalidDiscriminator(
                 "The discriminator for this account is invalid"
             )
-        dec = UserOrders.layout.parse(data[ACCOUNT_DISCRIMINATOR_SIZE:])
+        dec = StubOracle.layout.parse(data[ACCOUNT_DISCRIMINATOR_SIZE:])
         return cls(
-            user=dec.user,
-            curr_order_id=dec.curr_order_id,
+            magic=dec.magic,
+            price=dec.price,
+            last_update=dec.last_update,
+            pda_str=dec.pda_str,
         )
 
-    def to_json(self) -> UserOrdersJSON:
+    def to_json(self) -> StubOracleJSON:
         return {
-            "user": str(self.user),
-            "curr_order_id": self.curr_order_id,
+            "magic": self.magic,
+            "price": self.price,
+            "last_update": self.last_update,
+            "pda_str": self.pda_str,
         }
 
     @classmethod
-    def from_json(cls, obj: UserOrdersJSON) -> "UserOrders":
+    def from_json(cls, obj: StubOracleJSON) -> "StubOracle":
         return cls(
-            user=PublicKey(obj["user"]),
-            curr_order_id=obj["curr_order_id"],
+            magic=obj["magic"],
+            price=obj["price"],
+            last_update=obj["last_update"],
+            pda_str=obj["pda_str"],
         )

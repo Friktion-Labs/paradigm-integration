@@ -8,7 +8,12 @@
 from dataclasses import asdict
 import time
 from friktion_swap_client.friktion_anchor.instructions import cancel
+from friktion_swap_client.offer import Offer
 from friktion_swap_client.pda import DELEGATE_AUTHORITY_ADDRESS, SwapOrderAddresses, find_give_pool_address, find_receive_pool_address, find_swap_order_address, find_user_orders_address
+from requests import options
+
+from friktion_swap_client.inertia_anchor.accounts import OptionsContract
+
 from solana.utils import helpers
 from shutil import ExecError
 from anchorpy import Wallet
@@ -25,7 +30,6 @@ import spl.token._layouts as layouts
 from spl.token.client import Token
 from nacl import signing
 import sys
-sys.path.insert(0, "/Users/alexwlezien/Friktion/paradigm-integration/friktion-anchor")
 from .friktion_anchor.accounts import SwapOrder, UserOrders
 from .friktion_anchor.program_id import PROGRAM_ID
 from solana.sysvar import SYSVAR_RENT_PUBKEY
@@ -39,6 +43,8 @@ from spl.token.constants import ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID
 from solana.transaction import Transaction
 from enum import Enum
 import asyncio
+from spl.token.async_client import AsyncToken
+
 
 def get_token_account(token_account_pk: PublicKey):
     http_client = Client(commitment=Processed)
@@ -124,9 +130,67 @@ class SwapContract():
         config (ContractConfig): Configuration to setup the Contract
     """
 
-    async def get_offer_details(self, user: PublicKey, order_id: int) -> SwapOrder:
+    async def get_otoken_details_for_offer(self, offer: Offer):
+        if offer.swapOrderAddress is None:
+            raise Exception('can only get otoken details on an offer associated with an existin swap order')
+        print('swap order address = ', offer.swapOrderAddress)
+        swap_order = await self.get_swap_order_for_key(offer.swapOrderAddress)
+        options_contract = await self.get_options_contract_for_key(swap_order.options_contract)
+        ul_factor = await self._get_token_norm_factor(options_contract.underlying_mint)
+        quote_factor = await self._get_token_norm_factor(options_contract.quote_mint)
+        strike_price = (ul_factor / quote_factor) * options_contract.quote_amount / options_contract.underlying_amount if options_contract.is_call else (quote_factor / ul_factor) * options_contract.underlying_amount / options_contract.quote_amount
+        return {
+            'collateralAsset': options_contract.underlying_mint,
+            'expiryTimestamp': options_contract.expiry_ts,
+            'isPut': not options_contract.is_call,
+            'strikeAsset': options_contract.quote_mint,
+            'strikePrice': strike_price,
+            'collateralAsset': options_contract.underlying_mint
+        }
+
+    async def _get_token_norm_factor(self, mint: PublicKey) -> int:
+        client = AsyncClient(self.url)
+        await client.is_connected()
+        
+        give_token = AsyncToken(
+            client,
+            mint,
+            TOKEN_PROGRAM_ID,
+            Keypair.generate()
+        )
+
+        return 10 ** (await give_token.get_mint_info()).decimals
+
+    async def get_options_contract_for_key(self, key: PublicKey) -> OptionsContract:
+        client = AsyncClient(self.url)
+        res = await client.is_connected()
+        
+        acc = await OptionsContract.fetch(client, key)
+
+        await client.close()
+        return acc
+
+    async def get_swap_order_for_key(self, key: PublicKey) -> SwapOrder:
+        client = AsyncClient(self.url)
+        res = await client.is_connected()
+        
+        acc = await SwapOrder.fetch(client, key)
+
+        await client.close()
+        return acc
+
+    async def get_swap_order(self, user: PublicKey, order_id: int) -> SwapOrder:
+        [addr, bump] = find_swap_order_address(user, order_id)
+        
+        acc = await self.get_swap_order_for_key(addr)
+        if acc is None:
+            raise ValueError("No swap found for user = ", user, ', order id = ', order_id)
+
+        return acc
+
+    async def get_offer_details(self, user: PublicKey, order_id: int) -> Offer:
         """
-        Method to get bid details
+        Method to get offer details
         Args:
             offer_id (int): Offer ID
         Raises:
@@ -135,17 +199,9 @@ class SwapContract():
             details (SwapOrder): Offer details
         """
 
-        client = AsyncClient(self.url)
-        res = await client.is_connected()
-
-        [addr, bump] = find_swap_order_address(user, order_id)
-        
-        acc = await SwapOrder.fetch(client, addr)
-        if acc is None:
-            raise ValueError("No swap found for user = ", user, ', order id = ', order_id)
-
-        await client.close()
-        return acc
+        acc = await self.get_swap_order(user, order_id)
+        print('acc = ', acc)
+        return Offer.from_swap_order(acc, find_swap_order_address(user, order_id)[0])
 
     async def validate_bid(self, wallet: Wallet, bid_details: BidDetails, swap_order: SwapOrder) -> str:
         if swap_order.is_counterparty_provided and wallet.public_key != swap_order.counterparty:
@@ -181,12 +237,14 @@ class SwapContract():
 
         pdas : SwapOrderAddresses = await SwapOrderAddresses.from_user(client, wallet.public_key)
 
+
         ix = create({
             "give_size": template.give_size,
             "receive_size": template.receive_size,
             "expiry": template.expiry,
             "is_counterparty_provided": template.is_counterparty_provided,
-            "is_whitelisted": template.is_whitelisted
+            "is_whitelisted": template.is_whitelisted,
+            "enforce_mint_match": False
             }, {
             "payer": wallet.public_key, # signer
             "authority": wallet.public_key,
@@ -199,6 +257,7 @@ class SwapContract():
             "creator_give_pool": template.creator_give_pool,
             "counterparty": template.counterparty,
             "whitelist_token_mint": template.whitelist_token_mint,
+            "options_contract": template.options_contract_key,
             "system_program": SYS_PROGRAM_ID,
             "token_program": TOKEN_PROGRAM_ID,
             "rent": SYSVAR_RENT_PUBKEY

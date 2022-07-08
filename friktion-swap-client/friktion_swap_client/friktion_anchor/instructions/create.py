@@ -12,6 +12,7 @@ class CreateArgs(typing.TypedDict):
     expiry: int
     is_counterparty_provided: bool
     is_whitelisted: bool
+    enforce_mint_match: bool
 
 
 layout = borsh.CStruct(
@@ -20,6 +21,7 @@ layout = borsh.CStruct(
     "expiry" / borsh.U64,
     "is_counterparty_provided" / borsh.Bool,
     "is_whitelisted" / borsh.Bool,
+    "enforce_mint_match" / borsh.Bool,
 )
 
 
@@ -35,6 +37,7 @@ class CreateAccounts(typing.TypedDict):
     creator_give_pool: PublicKey
     counterparty: PublicKey
     whitelist_token_mint: PublicKey
+    options_contract: PublicKey
     system_program: PublicKey
     token_program: PublicKey
     rent: PublicKey
@@ -62,6 +65,9 @@ def create(args: CreateArgs, accounts: CreateAccounts) -> TransactionInstruction
             pubkey=accounts["whitelist_token_mint"], is_signer=False, is_writable=False
         ),
         AccountMeta(
+            pubkey=accounts["options_contract"], is_signer=False, is_writable=False
+        ),
+        AccountMeta(
             pubkey=accounts["system_program"], is_signer=False, is_writable=False
         ),
         AccountMeta(
@@ -77,6 +83,7 @@ def create(args: CreateArgs, accounts: CreateAccounts) -> TransactionInstruction
             "expiry": args["expiry"],
             "is_counterparty_provided": args["is_counterparty_provided"],
             "is_whitelisted": args["is_whitelisted"],
+            "enforce_mint_match": args["enforce_mint_match"],
         }
     )
     data = identifier + encoded_args

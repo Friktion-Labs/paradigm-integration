@@ -62,7 +62,6 @@ class SwapOrderAddresses():
     async def from_user(client: AsyncClient, user: PublicKey, order_id: int = None) -> Self:
         if order_id is None:
             user_orders_address = find_user_orders_address(user)[0]
-            print('user orders addy = ', user_orders_address)
             user_orders = await UserOrders.fetch(client, user_orders_address)
             if user_orders is None:
                 order_id = 0
