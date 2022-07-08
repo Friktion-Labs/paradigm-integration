@@ -5,7 +5,7 @@ class Offer(object):
     oToken: PublicKey
     biddingToken: PublicKey
     offerAmount: int
-    minPrice: float
+    minPrice: int
     minBidSize: int
     swapOrderAddress: Union[PublicKey, None]
 
@@ -14,7 +14,7 @@ class Offer(object):
         oToken: PublicKey,
         biddingToken: PublicKey,
         offerAmount: int,
-        minPrice: float,
+        minPrice: int,
         minBidSize: int
     ):
         self.oToken = oToken
@@ -31,7 +31,7 @@ class Offer(object):
             swap_order.give_mint,
             swap_order.receive_mint,
             swap_order.give_size,
-            0.0,
+            0,
             swap_order.give_size
         )
         o.swapOrderAddress = address

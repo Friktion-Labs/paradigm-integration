@@ -16,16 +16,22 @@ class BidDetails():
     counterparty_give_pool: PublicKey
     counterparty_receive_pool: PublicKey
 
+    bid_size: int
+
     def __init__(self,
         swap_order_owner: PublicKey,
         order_id: PublicKey,
         counterparty_give_pool: PublicKey,
-        counterparty_receive_pool: PublicKey
+        counterparty_receive_pool: PublicKey,
+        bid_size: int,
+        bid_price: int
     ):
         self.swap_order_owner = swap_order_owner
         self.order_id = order_id
         self.counterparty_give_pool = counterparty_give_pool
         self.counterparty_receive_pool = counterparty_receive_pool
+        self.bid_size = bid_size
+        self.bid_price = bid_price
 
     def as_signed_msg(self, wallet: Wallet, receive_amount: int, give_amount: int) -> signing.SignedMessage:
         byte_rep = b"".join([bytes([

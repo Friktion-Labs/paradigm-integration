@@ -7,6 +7,7 @@
 # ---------------------------------------------------------------------------
 from dataclasses import asdict
 import time
+from typing import Tuple
 from friktion_swap_client.friktion_anchor.instructions import cancel
 from friktion_swap_client.offer import Offer
 from friktion_swap_client.pda import DELEGATE_AUTHORITY_ADDRESS, SwapOrderAddresses, find_give_pool_address, find_receive_pool_address, find_swap_order_address, find_user_orders_address
@@ -84,7 +85,7 @@ class SwapContract():
 
 
     # delegate should be the PDA of the swap order
-    def give_allowance(self, wallet: Wallet, token_acct_to_delegate: PublicKey, mint: PublicKey, allowance: int):
+    def give_allowance(self, wallet: Wallet, token_acct_to_delegate: PublicKey, mint: PublicKey, allowance: int) -> bool:
 
         client = Client(self.url)
         token = Token(
@@ -108,7 +109,7 @@ class SwapContract():
         return True
     
     # delegate should be the PDA of the swap order
-    def verify_allowance(self, wallet: Wallet, mint: PublicKey, token_account: PublicKey):
+    def verify_allowance(self, wallet: Wallet, mint: PublicKey, token_account: PublicKey, with_assertions: bool) -> Tuple[int, int]:
         client = Client(self.url)
         token = Token(
             client,
@@ -119,10 +120,12 @@ class SwapContract():
         
         acct_info = token.get_account_info(token_account)
         print(acct_info.delegated_amount)
-        assert acct_info.delegate == DELEGATE_AUTHORITY_ADDRESS
-        assert acct_info.delegated_amount >= MIN_REQUIRED_ALLOWANCE
 
-        return acct_info.delegated_amount
+        if with_assertions:
+            assert acct_info.delegate == DELEGATE_AUTHORITY_ADDRESS
+            assert acct_info.delegated_amount >= MIN_REQUIRED_ALLOWANCE
+
+        return (acct_info.delegated_amount, acct_info.amount)
 
     """
     Object used to interact with swap contract
@@ -203,7 +206,33 @@ class SwapContract():
         print('acc = ', acc)
         return Offer.from_swap_order(acc, find_swap_order_address(user, order_id)[0])
 
-    async def validate_bid(self, wallet: Wallet, bid_details: BidDetails, swap_order: SwapOrder) -> str:
+    async def validate_bid(self, wallet: Wallet, bid_details: BidDetails, swap_order: SwapOrder, offer: Offer) -> dict:
+        if bid_details.bid_size < offer.minBidSize:
+            return {
+                "error": "bid size is below min bid size"
+            }
+        if bid_details.bid_size > offer.offerAmount:
+            return {
+                "error": "bid size is greater than offer size"
+            }
+        if bid_details.bid_price < offer.minPrice:
+            return {
+                "error": "bid price is less than min price"
+            }
+
+        (allowance, amount) = self.verify_allowance(wallet, offer.biddingToken, bid_details.counterparty_receive_pool, False)
+        
+        transfer_amount =  bid_details.bid_size * bid_details.bid_price
+        if allowance < transfer_amount:
+            return {
+                "error":"allowance is below required threshold"
+            } 
+
+        if amount < transfer_amount:
+            return {
+                "error":"amount in token account is below required threshold"
+            } 
+
         if swap_order.is_counterparty_provided and wallet.public_key != swap_order.counterparty:
             return {
                 "error": "counterparty wallet pubkey doesn't match given swap order"
@@ -286,7 +315,7 @@ class SwapContract():
         return acc
 
 
-    async def validate_and_exec_bid_msg(self, wallet: Wallet, bid_details: BidDetails, signed_msg: signing.SignedMessage):
+    async def validate_and_exec_bid_msg(self, wallet: Wallet, bid_details: BidDetails, signed_msg: signing.SignedMessage, offer: Offer):
         """
         Method to execute bid via signed message
         """
@@ -303,7 +332,7 @@ class SwapContract():
         if acc is None:
             raise ValueError("No swap found for user = ", swap_order_owner, ', order id = ', order_id)
 
-        error_dict = await self.validate_bid(wallet, bid_details, acc)
+        error_dict = await self.validate_bid(wallet, bid_details, acc, offer)
         if error_dict['error'] is not None:
             await client.close()
             return error_dict
@@ -344,7 +373,7 @@ class SwapContract():
 
 
 
-    async def validate_and_exec_bid(self, wallet: Wallet, bid_details: BidDetails):
+    async def validate_and_exec_bid(self, wallet: Wallet, bid_details: BidDetails, offer: Offer):
         """
         Method to validate bid
         Args:
@@ -369,7 +398,7 @@ class SwapContract():
         if acc is None:
             raise ValueError("No swap found for user = ", swap_order_owner, ', order id = ', order_id)
 
-        error_dict = await self.validate_bid(wallet, bid_details, acc)
+        error_dict = await self.validate_bid(wallet, bid_details, acc, offer)
         if error_dict['error'] is not None:
             await client.close()
             return error_dict
