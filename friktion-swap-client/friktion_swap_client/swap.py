@@ -143,7 +143,7 @@ class SwapContract():
         quote_factor = await self._get_token_norm_factor(options_contract.quote_mint)
         strike_price = (ul_factor / quote_factor) * options_contract.quote_amount / options_contract.underlying_amount if options_contract.is_call else (quote_factor / ul_factor) * options_contract.underlying_amount / options_contract.quote_amount
         return {
-            'collateralAsset': options_contract.underlying_mint,
+            'underlyingAsset': options_contract.underlying_mint,
             'expiryTimestamp': options_contract.expiry_ts,
             'isPut': not options_contract.is_call,
             'strikeAsset': options_contract.quote_mint,
