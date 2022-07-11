@@ -8,7 +8,7 @@
 from dataclasses import asdict
 import time
 from typing import Tuple
-from friktion_swap_client.friktion_anchor.instructions import cancel
+from friktion_swap_client.friktion_anchor.instructions import cancel, claim
 from friktion_swap_client.offer import Offer
 from friktion_swap_client.pda import DELEGATE_AUTHORITY_ADDRESS, SwapOrderAddresses, find_give_pool_address, find_receive_pool_address, find_swap_order_address, find_user_orders_address
 from requests import options
@@ -49,9 +49,7 @@ from spl.token.async_client import AsyncToken
 
 def get_token_account(token_account_pk: PublicKey):
     http_client = Client(commitment=Processed)
-    print('is connected?: {}'.format(http_client.is_connected()))
     resp = http_client.get_account_info(token_account_pk)
-    print("token account: {}".format(resp))
     account_data = layouts.ACCOUNT_LAYOUT.parse(decode_byte_string(resp["result"]["value"]["data"][0]))
     return account_data
 
@@ -170,6 +168,9 @@ class SwapContract():
         
         acc = await OptionsContract.fetch(client, key)
 
+        if acc is None:
+            raise ValueError("No options contract found for key = ", key)
+
         await client.close()
         return acc
 
@@ -179,6 +180,9 @@ class SwapContract():
         
         acc = await SwapOrder.fetch(client, key)
 
+        if acc is None:
+            raise ValueError("No swap order found for key = ", key)
+            
         await client.close()
         return acc
 
@@ -190,6 +194,7 @@ class SwapContract():
             raise ValueError("No swap found for user = ", user, ', order id = ', order_id)
 
         return acc
+
 
     async def get_offer_details(self, user: PublicKey, order_id: int) -> Offer:
         """
@@ -308,7 +313,7 @@ class SwapContract():
         await client.confirm_transaction(tx_resp)
 
         await asyncio.sleep(1)
-        acc = await SwapOrder.fetch(client, pdas.swap_order_address)
+        acc = await self.get_swap_order_for_key(pdas.swap_order_address)
 
         await client.close()
 
@@ -431,7 +436,7 @@ class SwapContract():
         await client.confirm_transaction(tx_resp)
         await client.close()
 
-    async def reclaim_assets_post_fill(self, wallet: Wallet, template: SwapOrderTemplate) -> SwapOrder:
+    async def reclaim_assets_post_fill(self, wallet: Wallet, give_pool: PublicKey, receive_pool: PublicKey) -> SwapOrder:
         """
         Method to create offer
         Args:
@@ -450,27 +455,15 @@ class SwapContract():
 
         pdas: SwapOrderAddresses = await SwapOrderAddresses.from_user(client, wallet.public_key)
     
-        ix = create({
-            "give_size": template.give_size,
-            "receive_size": template.receive_size,
-            "expiry": template.expiry,
-            "is_counterparty_provided": template.is_counterparty_provided,
-            "is_whitelisted": template.is_whitelisted
-            }, {
-            "payer": wallet.public_key, # signer
+        ix = claim({
             "authority": wallet.public_key,
-            "user_orders": pdas.user_orders_addr,
-            "swap_order": pdas.swap_order_addr,
-            "give_pool": pdas.give_pool_addr,
-            "give_mint": template.give_mint,
-            "receive_pool": pdas.receive_pool_addr,
-            "receive_mint": template.receive_mint,
-            "creator_give_pool": template.creator_give_pool,
-            "counterparty": template.counterparty,
-            "whitelist_token_mint": template.whitelist_token_mint,
+            "swap_order": pdas.swap_order_address,
+            "give_pool": pdas.give_pool_address,
+            "receive_pool": pdas.receive_pool_address,
+            "creator_give_pool": give_pool,
+            "creator_receive_pool": receive_pool,
             "system_program": SYS_PROGRAM_ID,
             "token_program": TOKEN_PROGRAM_ID,
-            "rent": SYSVAR_RENT_PUBKEY
         })
 
         tx = Transaction().add(ix)
@@ -479,35 +472,35 @@ class SwapContract():
             client, wallet
         )
 
-        print('sending create tx...')
+        print('sending claim tx...')
         tx_resp = await provider.send(tx, [])
         print(tx_resp)
 
         await client.confirm_transaction(tx_resp)
 
         await asyncio.sleep(1)
-        acc = await SwapOrder.fetch(client, pdas.swap_order_address)
+        acc = await self.get_swap_order_for_key(pdas.swap_order_address)
 
         await client.close()
 
         return acc
 
 
-    async def cancel_order(self, wallet: Wallet, order_id: int, creator_give_pool: PublicKey) -> SwapOrder:
+    async def cancel_order(self, wallet: Wallet, order_id: int, creator_give_pool: PublicKey):
 
         client = AsyncClient(self.url)
         await client.is_connected()
        
-        pdas : SwapOrderAddresses = await SwapOrderAddresses.from_user(client, wallet.public_key)
+        pdas : SwapOrderAddresses = await SwapOrderAddresses.from_user(client, wallet.public_key, order_id=order_id)
 
         ix = cancel({
-        "authority": wallet.public_key,
-        "swap_order": pdas.swap_order_address,
-        "give_pool": pdas.give_pool_address,
-        "creator_give_pool": creator_give_pool,
-        "receive_pool": pdas.receive_pool_address,
-        "system_program": SYS_PROGRAM_ID,
-        "token_program": TOKEN_PROGRAM_ID,
+            "authority": wallet.public_key,
+            "swap_order": pdas.swap_order_address,
+            "give_pool": pdas.give_pool_address,
+            "creator_give_pool": creator_give_pool,
+            "receive_pool": pdas.receive_pool_address,
+            "system_program": SYS_PROGRAM_ID,
+            "token_program": TOKEN_PROGRAM_ID,
         })
 
         tx = Transaction().add(ix)

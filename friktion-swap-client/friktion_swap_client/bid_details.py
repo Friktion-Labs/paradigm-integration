@@ -11,7 +11,7 @@ from .constants import WHITELIST_TOKEN_MINT
 class BidDetails():
 
     swap_order_owner: PublicKey
-    order_id: PublicKey
+    order_id: int
 
     counterparty_give_pool: PublicKey
     counterparty_receive_pool: PublicKey
@@ -20,7 +20,7 @@ class BidDetails():
 
     def __init__(self,
         swap_order_owner: PublicKey,
-        order_id: PublicKey,
+        order_id: int,
         counterparty_give_pool: PublicKey,
         counterparty_receive_pool: PublicKey,
         bid_size: int,
@@ -33,7 +33,7 @@ class BidDetails():
         self.bid_size = bid_size
         self.bid_price = bid_price
 
-    def as_signed_msg(self, wallet: Wallet, receive_amount: int, give_amount: int) -> signing.SignedMessage:
+    def as_signed_msg(self, wallet: Wallet, receive_amount: int, give_amount: int):
         byte_rep = b"".join([bytes([
             self.order_id
         ]),wallet.public_key.to_base58(),bytes([

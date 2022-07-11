@@ -148,6 +148,7 @@ async def main_def():
 
     print('3. creator reclaims assets...')
 
+    await c.reclaim_assets_post_fill(wallet, creator_give_pool_key, creator_receive_pool_key)
     print('Finished!')
     
     await client.close()

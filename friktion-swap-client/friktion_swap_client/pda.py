@@ -3,7 +3,7 @@ from typing_extensions import Self
 from friktion_swap_client.friktion_anchor.accounts.swap_order import SwapOrder
 from friktion_swap_client.friktion_anchor.accounts.user_orders import UserOrders
 from friktion_swap_client.friktion_anchor.program_id import PROGRAM_ID
-from httpx import AsyncClient
+from solana.rpc.async_api import AsyncClient
 from solana.publickey import PublicKey
 
 def find_swap_order_address(user: PublicKey, order_id: int) -> Tuple[PublicKey, int]:
@@ -59,7 +59,7 @@ class SwapOrderAddresses():
         self.delegate_authority_address = find_delegate_authority_address()[0]
 
     @staticmethod
-    async def from_user(client: AsyncClient, user: PublicKey, order_id: int = None) -> Self:
+    async def from_user(client: AsyncClient, user: PublicKey, order_id: int = None) -> 'SwapOrderAddresses':
         if order_id is None:
             user_orders_address = find_user_orders_address(user)[0]
             user_orders = await UserOrders.fetch(client, user_orders_address)

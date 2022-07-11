@@ -50,8 +50,8 @@ class SwapOrderTemplate():
 
     def as_offer(self) -> Offer:
         return Offer(
-            self.give_token,
-            self.receive_token,
+            self.give_mint,
+            self.receive_mint,
             self.give_size,
             0,
             self.give_size
