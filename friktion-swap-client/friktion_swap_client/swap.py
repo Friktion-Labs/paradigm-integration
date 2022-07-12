@@ -5,6 +5,8 @@
 # ---------------------------------------------------------------------------
 # Imports
 # ---------------------------------------------------------------------------
+from email import message
+import solders.signature
 from dataclasses import asdict
 import time
 from typing import Tuple
@@ -343,10 +345,12 @@ class SwapContract():
             await client.close()
             return error_dict
         
+        
         ix = exec_msg({
+            # "signature": str(signature.to_json()),
             "signature": str(signed_msg.signature),
             "caller": wallet.public_key,
-            "raw_msg": str(signed_msg.message)
+            "raw_msg": str(signed_msg.message),
         },{
             "authority": wallet.public_key, # signer
             "delegate_authority": pdas.delegate_authority_address,
