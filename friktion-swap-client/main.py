@@ -1,3 +1,4 @@
+from calendar import day_abbr
 from friktion_swap_client.offer import Offer
 from friktion_swap_client.swap import *
 import time
@@ -10,6 +11,7 @@ from spl.token.instructions import get_associated_token_address
 c = SwapContract(Network.DEVNET)
 
 wallet = Wallet.local()
+
 
 # devnet
 GIVE_MINT = PublicKey("E6Z6zLzk8MWY3TY8E87mr88FhGowEPJTeMWzkqtL6qkF")
@@ -83,7 +85,7 @@ async def main_def():
     print('1. creator initializes swap offer...')
 
     # create a dummy offer for testing purposes
-    swap_order_pre_fill = await c.create_offer(
+    (swap_order_pre_fill, swap_order_key) = await c.create_offer(
         wallet, SwapOrderTemplate.from_offer(
             Offer(
                 oToken=GIVE_MINT,
@@ -148,7 +150,7 @@ async def main_def():
 
     print('3. creator reclaims assets...')
 
-    await c.reclaim_assets_post_fill(wallet, creator_give_pool_key, creator_receive_pool_key)
+    await c.reclaim_assets_post_fill(wallet, swap_order_key, creator_give_pool_key, creator_receive_pool_key)
     print('Finished!')
     
     await client.close()

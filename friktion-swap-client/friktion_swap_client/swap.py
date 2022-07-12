@@ -252,7 +252,7 @@ class SwapContract():
             "error": None
         }
 
-    async def create_offer(self, wallet: Wallet, template: SwapOrderTemplate) -> SwapOrder:
+    async def create_offer(self, wallet: Wallet, template: SwapOrderTemplate) -> Tuple[SwapOrder, PublicKey]:
         """
         Method to create offer
         Args:
@@ -317,7 +317,8 @@ class SwapContract():
 
         await client.close()
 
-        return acc
+        return (acc, pdas.swap_order_address)
+
 
 
     async def validate_and_exec_bid_msg(self, wallet: Wallet, bid_details: BidDetails, signed_msg: signing.SignedMessage, offer: Offer):
@@ -436,7 +437,7 @@ class SwapContract():
         await client.confirm_transaction(tx_resp)
         await client.close()
 
-    async def reclaim_assets_post_fill(self, wallet: Wallet, give_pool: PublicKey, receive_pool: PublicKey) -> SwapOrder:
+    async def reclaim_assets_post_fill(self, creator_wallet: Wallet, swap_order: PublicKey, give_pool: PublicKey, receive_pool: PublicKey) -> SwapOrder:
         """
         Method to create offer
         Args:
@@ -453,10 +454,9 @@ class SwapContract():
         client = AsyncClient(self.url)
         await client.is_connected()
 
-        pdas: SwapOrderAddresses = await SwapOrderAddresses.from_user(client, wallet.public_key)
-    
+        pdas: SwapOrderAddresses = SwapOrderAddresses(creator_wallet.public_key, swap_order_address=swap_order)
         ix = claim({
-            "authority": wallet.public_key,
+            "authority": creator_wallet.public_key,
             "swap_order": pdas.swap_order_address,
             "give_pool": pdas.give_pool_address,
             "receive_pool": pdas.receive_pool_address,
@@ -469,7 +469,7 @@ class SwapContract():
         tx = Transaction().add(ix)
 
         provider = Provider(
-            client, wallet
+            client, creator_wallet
         )
 
         print('sending claim tx...')

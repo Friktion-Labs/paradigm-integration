@@ -51,9 +51,14 @@ class SwapOrderAddresses():
     receive_pool_address: PublicKey
     delegate_authority_address: PublicKey
 
-    def __init__(self, user: PublicKey, order_id: int):
+    def __init__(self, user: PublicKey, order_id: int = None, swap_order_address = None):
         self.user_orders_address = find_user_orders_address(user)[0]
-        self.swap_order_address = find_swap_order_address(user, order_id)[0]
+        if order_id is not None:
+            self.swap_order_address = find_swap_order_address(user, order_id)[0]
+        elif swap_order_address is None:
+            raise Exception("either order id or swap order address must be not None")
+        else:
+            self.swap_order_address = swap_order_address
         self.give_pool_address = find_give_pool_address(self.swap_order_address)[0]
         self.receive_pool_address = find_receive_pool_address(self.swap_order_address)[0]
         self.delegate_authority_address = find_delegate_authority_address()[0]
